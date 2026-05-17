@@ -24,7 +24,8 @@ class Program
                 clientConn.Register();
                 lock (_lock) _clients.Add(clientConn.UID, clientConn);
                 Console.WriteLine($"[{DateTime.Now}]\t'{clientConn.Username}' [{clientConn.UID}] has joined the chat.");
-                BroadcastConnection(clientConn);
+                BroadcastNewUser(clientConn);
+                SendUserList(clientConn);
 
                 clientConn.ClientChatted += OnClientChatted;
                 clientConn.ClientDisconnected += OnClientDisconnected;
@@ -44,7 +45,7 @@ class Program
             return;
 
         var chatMsg = clientConn.ReadNextMessageSection();
-        Console.WriteLine($"[{DateTime.Now}]\t'Received chat message from {clientConn.Username}': {chatMsg}");
+        Console.WriteLine($"[{DateTime.Now}]\tReceived chat message from '{clientConn.Username}': {chatMsg}");
         BroadcastChatMessage(clientConn, chatMsg);
     }
 
@@ -59,17 +60,24 @@ class Program
         BroadcastDisconnect(clientConn);
     }
 
-    private static void BroadcastConnection(ClientConnection newClient)
+    private static void BroadcastNewUser(ClientConnection newClient)
     {
         lock (_lock)
         {
             foreach (var client in _clients.Values)
             {
-                client.Send(OpCode.NewUser, newClient.UID.ToString());
-                foreach (var c in _clients.Values)
-                {
-                    client.Send(OpCode.UserListUpdate, c.UID.ToString(), c.Username);
-                }
+                client.Send(OpCode.NewUser, newClient.UID.ToString(), newClient.Username);
+            }
+        }
+    }
+
+    private static void SendUserList(ClientConnection target)
+    {
+        lock (_lock)
+        {
+            foreach (var client in _clients.Values)
+            {
+                target.Send(OpCode.UserListUpdate, client.UID.ToString(), client.Username);
             }
         }
     }

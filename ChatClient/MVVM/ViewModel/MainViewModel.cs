@@ -27,10 +27,10 @@ public class MainViewModel
     public MainViewModel()
     {
         _serverConn = new ServerConnection();
-        _serverConn.ConnectedToServer += OnConnectedToServer;
+        _serverConn.UserJoined += OnUserJoined;
         _serverConn.UserListUpdated += OnUserListUpdated;
         _serverConn.UserChatted += OnUserChat;
-        _serverConn.UserDisconnected += OnUserDisconnect;
+        _serverConn.UserLeft += OnUserDisconnect;
 
         ConnectToServerCommand = new(
             o =>
@@ -61,20 +61,7 @@ public class MainViewModel
             );
     }
 
-    private void OnConnectedToServer(object? sender, EventArgs e)
-    {
-        if (sender is not ServerConnection serverConn)
-            return;
-
-        var welcomeMsg = new MessageModel()
-        {
-            Sender = UserModel.System,
-            Message = $"Welcome to the chat."
-        };
-        Application.Current.Dispatcher.Invoke(() => Messages.Add(welcomeMsg));
-    }
-
-    private void OnUserListUpdated(object? sender, EventArgs e)
+    private void OnUserJoined(object? sender, EventArgs e)
     {
         if (sender is not ServerConnection serverConn)
             return;
@@ -93,6 +80,21 @@ public class MainViewModel
         };
         Application.Current.Dispatcher.Invoke(() => Users.Add(newbie));
         Application.Current.Dispatcher.Invoke(() => Messages.Add(newbieMsg));
+    }
+
+    private void OnUserListUpdated(object? sender, EventArgs e)
+    {
+        if (sender is not ServerConnection serverConn)
+            return;
+
+        var user = new UserModel()
+        {
+            UID = Guid.Parse(_serverConn.ReadNextMessageSection()),
+            Username = _serverConn.ReadNextMessageSection(),
+        };
+        if (Users.Any(u => u.UID == user.UID)) return;
+
+        Application.Current.Dispatcher.Invoke(() => Users.Add(user));
     }
 
     private void OnUserChat(object? sender, EventArgs e)

@@ -7,10 +7,10 @@ namespace ChatClient.Net;
 
 public class ServerConnection
 {
-    public event EventHandler? ConnectedToServer;
+    public event EventHandler? UserJoined;
     public event EventHandler? UserListUpdated;
     public event EventHandler? UserChatted;
-    public event EventHandler? UserDisconnected;
+    public event EventHandler? UserLeft;
 
     public bool Connected => _tcpClient.Connected;
 
@@ -61,7 +61,7 @@ public class ServerConnection
             switch (opcode)
             {
                 case OpCode.NewUser:
-                    ConnectedToServer?.Invoke(this, EventArgs.Empty);
+                    UserJoined?.Invoke(this, EventArgs.Empty);
                     break;
                 case OpCode.UserListUpdate:
                     UserListUpdated?.Invoke(this, EventArgs.Empty);
@@ -70,7 +70,7 @@ public class ServerConnection
                     UserChatted?.Invoke(this, EventArgs.Empty);
                     break;
                 case OpCode.Disconnect:
-                    UserDisconnected?.Invoke(this, EventArgs.Empty);
+                    UserLeft?.Invoke(this, EventArgs.Empty);
                     break;
                 case OpCode.EOS:
                     goto DISCONNECT;
