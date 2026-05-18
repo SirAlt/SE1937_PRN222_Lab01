@@ -1,0 +1,36 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Style TargetType="ListViewItem" x:Key="MemberCard">
+
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsSelf}" Value="True">
+                <Setter Property="Foreground" Value="LightGreen"/>
+            </DataTrigger>
+        </Style.Triggers>
+
+        <Setter Property="Background" Value="#393B40"/>
+        <Setter Property="Foreground" Value="White"/>
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListViewItem">
+                    <Border Background="{TemplateBinding Background}"
+                            Height="50"
+                            CornerRadius="4"
+                            Margin="8,2">
+
+                        <Label Content="{Binding Username}"
+                               Foreground="{TemplateBinding Foreground}"
+                               VerticalContentAlignment="Center"
+                               FontWeight="SemiBold"
+                               Margin="10,0,0,0"/>
+
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+
+    </Style>
+
+</ResourceDictionary>

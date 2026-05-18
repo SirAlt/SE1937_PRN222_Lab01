@@ -1,0 +1,66 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:core="clr-namespace:ChatClient.MVVM.Core"
+                    xmlns:emoji="clr-namespace:iNKORE.UI.WPF.Emojis;assembly=iNKORE.UI.WPF.Emojis">
+
+    <Style TargetType="TextBox" x:Key="ConnectBox">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+
+                    <Grid>
+
+                        <Border CornerRadius="3"
+                                Margin="{TemplateBinding core:TextBoxExt.BorderMargin}"
+                                Background="#3E4147">
+
+                            <TextBox x:Name="InputBox"
+                                     Height="25"
+                                     Margin="{TemplateBinding core:TextBoxExt.TextBoxMargin}"
+                                     Background="Transparent"
+                                     Foreground="LightGray"
+                                     CaretBrush="Gray"
+                                     FontWeight="SemiBold"
+                                     BorderThickness="0"
+                                     VerticalContentAlignment="Center"
+                                     HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                     Text="{TemplateBinding Text}">
+
+                                <TextBox.InputBindings>
+                                    <KeyBinding Command="{Binding ConnectToServerCommand}" Key="Return"/>
+                                </TextBox.InputBindings>
+
+                            </TextBox>
+
+                        </Border>
+
+                        <TextBlock Text="{TemplateBinding core:TextBoxExt.Placeholder}"
+                                   IsHitTestVisible="False"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="{TemplateBinding core:TextBoxExt.PlaceholderHorizontalAlignment}"
+                                   Foreground="DarkGray"
+                                   FontWeight="Medium"
+                                   Margin="{TemplateBinding core:TextBoxExt.PlaceholderMargin}">
+
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text, ElementName=InputBox}" Value="">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+
+                        </TextBlock>
+
+                    </Grid>
+
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+
+    </Style>
+
+</ResourceDictionary>

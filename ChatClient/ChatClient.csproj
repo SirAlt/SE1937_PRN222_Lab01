@@ -9,7 +9,46 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\NetIO\NetIO.csproj" />
+    <None Remove="Icons\power.png" />
+    <None Remove="Icons\power_off.png" />
+    <None Remove="Icons\power_on.png" />
+    <None Remove="Icons\send.png" />
+    <None Remove="Icons\send_fill.png" />
+    <None Remove="Icons\send_fill_active.png" />
+    <None Remove="Icons\smiley.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Icons\power.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Icons\power_off.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Icons\power_on.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Icons\send.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Icons\send_fill.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Icons\send_fill_active.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Icons\smiley.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Resource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="iNKORE.UI.WPF" Version="1.2.8" />
+    <PackageReference Include="iNKORE.UI.WPF.Emojis" Version="0.3.6.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NetProtocol\NetProtocol.csproj" />
   </ItemGroup>
 
 </Project>

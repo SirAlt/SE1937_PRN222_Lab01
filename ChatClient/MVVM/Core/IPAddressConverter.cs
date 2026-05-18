@@ -19,6 +19,6 @@ public class IPAddressConverter : IValueConverter
     {
         if (IPAddress.TryParse((string)value, out IPAddress? ip))
             return ip;
-        return IPAddress.None;
+        return null!;
     }
 }

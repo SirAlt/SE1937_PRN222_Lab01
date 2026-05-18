@@ -1,7 +1,7 @@
 ﻿using System.IO;
 using System.Text;
 
-namespace NetIO;
+namespace NetProtocol;
 
 public class PacketBuilder
 {
@@ -22,8 +22,9 @@ public class PacketBuilder
     public PacketBuilder WriteMessage(string msg)
     {
         if (_ms.Position == 0) _ms.Position = 1;
-        _ms.Write(BitConverter.GetBytes(msg.Length));
-        _ms.Write(Encoding.UTF8.GetBytes(msg));
+        var buffer = Encoding.UTF8.GetBytes(msg);
+        _ms.Write(BitConverter.GetBytes(buffer.Length));
+        _ms.Write(buffer);
         return this;
     }
 

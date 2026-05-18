@@ -1,13 +1,14 @@
 ﻿using ChatClient.MVVM.Utils;
-using NetIO;
+using NetProtocol;
 using System.Net;
 using System.Net.Sockets;
 
-namespace ChatClient.Net;
+namespace ChatClient.Network;
 
 public class ServerConnection
 {
     public event EventHandler? UserJoined;
+    public event EventHandler? UidInfoReceived;
     public event EventHandler? UserListUpdated;
     public event EventHandler? UserChatted;
     public event EventHandler? UserLeft;
@@ -63,7 +64,10 @@ public class ServerConnection
                 case OpCode.NewUser:
                     UserJoined?.Invoke(this, EventArgs.Empty);
                     break;
-                case OpCode.UserListUpdate:
+                case OpCode.UIDInfo:
+                    UidInfoReceived?.Invoke(this, EventArgs.Empty);
+                    break;
+                case OpCode.UserList:
                     UserListUpdated?.Invoke(this, EventArgs.Empty);
                     break;
                 case OpCode.Chat:

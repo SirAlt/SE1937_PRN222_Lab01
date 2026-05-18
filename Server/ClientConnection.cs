@@ -1,4 +1,4 @@
-﻿using NetIO;
+﻿using NetProtocol;
 using System.Net.Sockets;
 
 namespace Server;
@@ -20,6 +20,45 @@ public class ClientConnection(TcpClient tcpClient)
         if (opcode != OpCode.NewUser)
             throw new Exception("Invalid opcode for registration.");
         Username = _packetReader.ReadMessage();
+    }
+
+    public void BeginListen() => Task.Run(Listen);
+
+    private void Listen()
+    {
+        while (true)
+        {
+            try
+            {
+                if (_packetReader == null)
+                    break;
+
+                var opcode = _packetReader.ReadOpCode();
+                switch (opcode)
+                {
+                    case OpCode.Chat:
+                        ClientChatted?.Invoke(this, EventArgs.Empty);
+                        break;
+                    case OpCode.EOS:
+                        goto DISCONNECT;
+                    case OpCode.NewUser:
+                    case OpCode.UIDInfo:
+                    case OpCode.UserList:
+                    case OpCode.Disconnect:
+                        Console.WriteLine($"User '{Username}' [{UID}] just tried to be sneaky. Interesting...");
+                        break;
+                    default:
+                        Console.WriteLine("Eh?");
+                        break;
+                }
+            }
+            catch (IOException)
+            {
+                goto DISCONNECT;
+            }
+        }
+    DISCONNECT:
+        ClientDisconnected?.Invoke(this, EventArgs.Empty);
     }
 
     public string ReadNextMessageSection()
@@ -44,44 +83,6 @@ public class ClientConnection(TcpClient tcpClient)
 
         var packet = builder.Build();
         _tcpClient.GetStream().Write(packet);
-    }
-
-    public void BeginListen() => Task.Run(Listen);
-
-    private void Listen()
-    {
-        while (true)
-        {
-            try
-            {
-                if (_packetReader == null)
-                    break;
-
-                var opcode = _packetReader.ReadOpCode();
-                switch (opcode)
-                {
-                    case OpCode.Chat:
-                        ClientChatted?.Invoke(this, EventArgs.Empty);
-                        break;
-                    case OpCode.EOS:
-                        goto DISCONNECT;
-                    case OpCode.NewUser:
-                    case OpCode.UserListUpdate:
-                    case OpCode.Disconnect:
-                        Console.WriteLine($"User '{Username}' [{UID}] just tried to be sneaky. Interesting...");
-                        break;
-                    default:
-                        Console.WriteLine("Eh?");
-                        break;
-                }
-            }
-            catch (IOException)
-            {
-                goto DISCONNECT;
-            }
-        }
-    DISCONNECT:
-        ClientDisconnected?.Invoke(this, EventArgs.Empty);
     }
 
     public void Terminate()

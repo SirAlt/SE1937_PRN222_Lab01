@@ -1,19 +1,71 @@
 ﻿using ChatClient.MVVM.Core;
 using ChatClient.MVVM.Model;
+using ChatClient.MVVM.Stores;
 using ChatClient.MVVM.Utils;
-using ChatClient.Net;
+using ChatClient.Network;
 using System.Collections.ObjectModel;
 using System.Net;
 using System.Windows;
 
 namespace ChatClient.MVVM.ViewModel;
 
-public class MainViewModel
+public class MainViewModel : ObservableObject
 {
-    public IPAddress IP { get; set; } = IPAddress.Loopback;
-    public int Port { get; set; } = 1337;
-    public string Username { get; set; } = string.Empty;
-    public string Message { get; set; } = string.Empty;
+    private IPAddress _ip = IPAddress.Loopback;
+    public IPAddress IP
+    {
+        get => _ip;
+        set
+        {
+            if (_ip != value)
+            {
+                _ip = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private int _port = 1337;
+    public int Port
+    {
+        get => _port;
+        set
+        {
+            if (_port != value)
+            {
+                _port = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _username = string.Empty;
+    public string Username
+    {
+        get => _username;
+        set
+        {
+            if (_username != value)
+            {
+                _username = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _message = string.Empty;
+    public string Message
+    {
+        get => _message;
+        set
+        {
+            if (_message != value)
+            {
+                _message = value;
+                OnPropertyChanged();
+            }
+        }
+    }
 
     public ObservableCollection<UserModel> Users { get; set; } = [];
     public ObservableCollection<MessageModel> Messages { get; set; } = [];
@@ -22,19 +74,27 @@ public class MainViewModel
     public RelayCommand SendChatCommand { get; set; }
     public RelayCommand DisconnectCommand { get; set; }
 
-    private readonly ServerConnection _serverConn;
+    private UserModel? _system;
+    private UserModel System => _system ??= new()
+    {
+        UID = IdStore.Instance.SystemUID,
+        Username = "SYSTEM",
+    };
+
+    private ServerConnection? _serverConn;
 
     public MainViewModel()
     {
-        _serverConn = new ServerConnection();
-        _serverConn.UserJoined += OnUserJoined;
-        _serverConn.UserListUpdated += OnUserListUpdated;
-        _serverConn.UserChatted += OnUserChat;
-        _serverConn.UserLeft += OnUserDisconnect;
-
         ConnectToServerCommand = new(
             o =>
             {
+                _serverConn = new ServerConnection();
+                _serverConn.UserJoined += OnUserJoined;
+                _serverConn.UidInfoReceived += OnUidInfoReceived;
+                _serverConn.UserListUpdated += OnUserListUpdated;
+                _serverConn.UserChatted += OnUserChat;
+                _serverConn.UserLeft += OnUserDisconnect;
+
                 if (IP == null || IPAddress.None.Equals(IP) || IPAddress.Any.Equals(IP))
                 {
                     ViewUtils.Warn("You likely entered a malformed IP address. Try again.", "Invalid IP address");
@@ -47,39 +107,42 @@ public class MainViewModel
                 }
                 _serverConn.ConnectToServer(IP!, Port, Username!);
             },
-            o => !_serverConn.Connected && IP != null && Port != default && !string.IsNullOrWhiteSpace(Username)
+            o => (_serverConn == null || !_serverConn.Connected) && IP != null && Port != default && !string.IsNullOrWhiteSpace(Username)
             );
 
         SendChatCommand = new(
-            o => _serverConn.SendChat(Message),
-            o => _serverConn.Connected && !string.IsNullOrWhiteSpace(Message)
+            o =>
+            {
+                _serverConn?.SendChat(Message);
+                Message = string.Empty;
+            },
+            o => _serverConn != null && _serverConn.Connected && !string.IsNullOrWhiteSpace(Message)
             );
 
         DisconnectCommand = new(
-            o => _serverConn.DisconnectFromServer(),
-            o => _serverConn.Connected
+            o =>
+            {
+                _serverConn?.DisconnectFromServer();
+
+                var goodbyeMsg = new MessageModel()
+                {
+                    Sender = System,
+                    Message = "You have left the chat.",
+                };
+                Messages.Add(goodbyeMsg);
+                Users.Clear();
+            },
+            o => _serverConn != null && _serverConn.Connected
             );
     }
 
-    private void OnUserJoined(object? sender, EventArgs e)
+    private void OnUidInfoReceived(object? sender, EventArgs e)
     {
         if (sender is not ServerConnection serverConn)
             return;
 
-        var newbie = new UserModel()
-        {
-            UID = Guid.Parse(_serverConn.ReadNextMessageSection()),
-            Username = _serverConn.ReadNextMessageSection(),
-        };
-        if (Users.Any(u => u.UID == newbie.UID)) return;
-
-        var newbieMsg = new MessageModel()
-        {
-            Sender = UserModel.System,
-            Message = $"'{newbie.Username}' has joined the chat."
-        };
-        Application.Current.Dispatcher.Invoke(() => Users.Add(newbie));
-        Application.Current.Dispatcher.Invoke(() => Messages.Add(newbieMsg));
+        IdStore.Instance.SystemUID = Guid.Parse(serverConn.ReadNextMessageSection());
+        IdStore.Instance.NativeUID = Guid.Parse(serverConn.ReadNextMessageSection());
     }
 
     private void OnUserListUpdated(object? sender, EventArgs e)
@@ -87,14 +150,44 @@ public class MainViewModel
         if (sender is not ServerConnection serverConn)
             return;
 
+        var uid = Guid.Parse(serverConn.ReadNextMessageSection());
         var user = new UserModel()
         {
-            UID = Guid.Parse(_serverConn.ReadNextMessageSection()),
-            Username = _serverConn.ReadNextMessageSection(),
+            UID = uid,
+            Username = serverConn.ReadNextMessageSection(),
         };
-        if (Users.Any(u => u.UID == user.UID)) return;
 
-        Application.Current.Dispatcher.Invoke(() => Users.Add(user));
+        if (!Users.Any(u => u.UID == user.UID))
+        {
+            Application.Current.Dispatcher.Invoke(() => Users.Add(user));
+        }
+    }
+
+    private void OnUserJoined(object? sender, EventArgs e)
+    {
+        if (sender is not ServerConnection serverConn)
+            return;
+
+        var uid = Guid.Parse(serverConn.ReadNextMessageSection());
+        var newbie = new UserModel()
+        {
+            UID = uid,
+            Username = serverConn.ReadNextMessageSection(),
+        };
+
+        var newbieMsg = new MessageModel()
+        {
+            Sender = System,
+            Message = newbie.IsNative
+                        ? "You have joined the chat."
+                        : $"'{newbie.Username}' has joined the chat.",
+        };
+        Application.Current.Dispatcher.Invoke(() => Messages.Add(newbieMsg));
+
+        if (!Users.Any(u => u.UID == newbie.UID))
+        {
+            Application.Current.Dispatcher.Invoke(() => Users.Add(newbie));
+        }
     }
 
     private void OnUserChat(object? sender, EventArgs e)
@@ -104,15 +197,20 @@ public class MainViewModel
 
         var uid = serverConn.ReadNextMessageSection();
         var msg = serverConn.ReadNextMessageSection();
+        var t = serverConn.ReadNextMessageSection();
 
         var src = Users.FirstOrDefault(
             u => u.UID == Guid.Parse(uid),
             UndefinedUser);
 
+        if (!DateTime.TryParse(t, out var time))
+            time = DateTime.Now;
+
         var message = new MessageModel()
         {
             Sender = src,
             Message = msg,
+            Time = time,
         };
         Application.Current.Dispatcher.Invoke(() => Messages.Add(message));
     }
@@ -128,11 +226,13 @@ public class MainViewModel
 
         var leaverMsg = new MessageModel()
         {
-            Sender = UserModel.System,
-            Message = $"'{leaver.Username}' has left the chat.",
+            Sender = System,
+            Message = leaver.IsNative
+                        ? "You have left the chat."
+                        : $"'{leaver.Username}' has left the chat.",
         };
-        Application.Current.Dispatcher.Invoke(() => Users.Remove(leaver));
         Application.Current.Dispatcher.Invoke(() => Messages.Add(leaverMsg));
+        Application.Current.Dispatcher.Invoke(() => Users.Remove(leaver));
     }
 
     private static readonly UserModel UndefinedUser = new()

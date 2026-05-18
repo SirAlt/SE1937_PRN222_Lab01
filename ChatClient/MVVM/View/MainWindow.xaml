@@ -6,11 +6,28 @@
         xmlns:local="clr-namespace:ChatClient"
         xmlns:core="clr-namespace:ChatClient.MVVM.Core"
         xmlns:viewmodel="clr-namespace:ChatClient.MVVM.ViewModel"
+        xmlns:emoji="clr-namespace:iNKORE.UI.WPF.Emojis;assembly=iNKORE.UI.WPF.Emojis"
         mc:Ignorable="d"
-        Title="MainWindow" Height="475" Width="815">
+        Title="MainWindow" Height="650" Width="1200"
+        Background="#36393F"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        ResizeMode="CanResizeWithGrip">
 
     <Window.Resources>
-        <core:IPAddressConverter x:Key="IPAddressConverter"/>
+        <ResourceDictionary>
+
+            <core:IPAddressConverter x:Key="IPAddressConverter"/>
+
+            <Style TargetType="emoji:EmojiPicker" x:Key="EmojiPicker">
+                <Style.Resources>
+                    <Style TargetType="ToggleButton">
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                    </Style>
+                </Style.Resources>
+            </Style>
+        </ResourceDictionary>
     </Window.Resources>
 
     <Window.DataContext>
@@ -18,76 +35,408 @@
     </Window.DataContext>
 
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="40"/>
+            <RowDefinition/>
+        </Grid.RowDefinitions>
+
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="200"/>
             <ColumnDefinition/>
         </Grid.ColumnDefinitions>
 
-        <DockPanel Grid.Column="0">
-            <StackPanel Orientation="Horizontal"
-                        Height="25"
-                        Margin="0,5,0,0"
-                        DockPanel.Dock="Top">
-                <TextBox Height="25"
-                         Width="140"
-                         VerticalContentAlignment="Center"
-                         HorizontalContentAlignment="Right"
-                         Text="{Binding IP, Mode=TwoWay, Converter={StaticResource IPAddressConverter}}"/>
-                <TextBox Height="25"
-                         Width="60"
-                         VerticalContentAlignment="Center"
-                         HorizontalContentAlignment="Right"
-                         Text="{Binding Port, Mode=TwoWay}"/>
-            </StackPanel>
-            <TextBox Height="25"
-                     Margin="0,5"
-                     VerticalContentAlignment="Center"
-                     HorizontalContentAlignment="Center"
-                     DockPanel.Dock="Top"
-                     Text="{Binding Username, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-            <Button Height="25"
-                    Margin="0,5"
-                    DockPanel.Dock="Top"
-                    Content="Connect"
-                    Command="{Binding ConnectToServerCommand}"/>
-            <Button Height="25"
-                    DockPanel.Dock="Top"
-                    Content="Disconnect"
-                    Command="{Binding DisconnectCommand}"/>
-            <ListView ItemsSource="{Binding Users}">
-                <ListView.ItemTemplate>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding Username}"/>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
-        </DockPanel>
+        <Border Grid.ColumnSpan="2"
+                Background="#252525" MouseLeftButtonDown="Border_MouseLeftButtonDown">
+            <Grid HorizontalAlignment="Stretch">
+                <Label Content="TCP Chat"
+                       Foreground="Gray"
+                       FontWeight="SemiBold"
+                       VerticalContentAlignment="Center"/>
 
-        <StackPanel Grid.Column="1">
-            <ListView Height="380"
-                      ItemsSource="{Binding Messages}">
-                <ListView.ItemTemplate>
-                    <DataTemplate>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="75"/>
-                                <ColumnDefinition/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{Binding Path=Sender.Username}"/>
-                            <TextBlock Grid.Column="1" Text="{Binding Message}"/>
-                        </Grid>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right">
+                    <Button Width="30" Height="30"
+                            Content="ー"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Foreground="Gray" 
+                            FontWeight="Bold"
+                            Click="ButtonMinimize_Click"/>
+                    <Button Width="30" Height="30"
+                            Content="☐"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Foreground="Gray" 
+                            FontWeight="Bold"
+                            Click="ButtonMaximize_Click"/>
+                    <Button Width="30" Height="30"
+                            Content="⨉"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Foreground="Gray"
+                            FontWeight="Bold"
+                            Click="ButtonClose_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1"
+              Background="#2F3136">
+
+            <Grid.RowDefinitions>
+                <RowDefinition Height="50"/>
+                <RowDefinition/>
+                <RowDefinition Height="auto"/>
+            </Grid.RowDefinitions>
+
+            <Label Content="Users"
+                   VerticalAlignment="Center"
+                   FontWeight="Medium"
+                   Foreground="Gray"
+                   Margin="8,0,0,0"/>
+
+            <ListView Grid.Row="1"
+                      ItemsSource="{Binding Users}"
+                      ItemContainerStyle="{StaticResource MemberCard}"
+                      Background="Transparent"
+                      BorderThickness="0">
             </ListView>
-            <StackPanel Orientation="Horizontal">
-                <TextBox Height="55"
-                         Width="490"
-                         VerticalContentAlignment="Center"
-                         Text="{Binding Message, UpdateSourceTrigger=PropertyChanged}"/>
-                <Button Width="55" Content="Emoji"/>
-                <Button Width="55" Content="Send" Command="{Binding SendChatCommand}"/>
-            </StackPanel>
-        </StackPanel>
+
+            <Grid Grid.Row="2"
+                  Background="#292B2F">
+
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition/>
+                    <ColumnDefinition Width="auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Grid Margin="0,8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition/>
+                        <RowDefinition/>
+                    </Grid.RowDefinitions>
+
+                    <Grid>
+
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="11*"/>
+                            <ColumnDefinition Width="5*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Grid>
+                            <Border CornerRadius="3"
+                                Margin="8,4,2,4"
+                                Background="#3E4147">
+                                <TextBox x:Name="IPInputBox"
+                                     Height="25"
+                                     Margin="0,0,3,0"
+                                     Background="Transparent"
+                                     Foreground="LightGray"
+                                     CaretBrush="Gray"
+                                     FontWeight="SemiBold"
+                                     BorderThickness="0"
+                                     VerticalContentAlignment="Center"
+                                     HorizontalContentAlignment="Right"
+                                     Text="{Binding IP, Mode=TwoWay, Converter={StaticResource IPAddressConverter}}">
+
+                                    <TextBox.InputBindings>
+                                        <KeyBinding Command="{Binding ConnectToServerCommand}" Key="Return"/>
+                                    </TextBox.InputBindings>
+                                </TextBox>
+                            </Border>
+
+                            <TextBlock Text="IP Address"
+                                   IsHitTestVisible="False"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Right"
+                                   Foreground="DarkGray"
+                                   FontWeight="Medium"
+                                   Margin="0,0,8,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Text, ElementName=IPInputBox}" Value="">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+
+                        <Grid Grid.Column="1">
+                            <Border CornerRadius="3"
+                                    Margin="2,4,8,4"
+                                    Background="#3E4147">
+                                <TextBox x:Name="PortInputBox"
+                                     Height="25"
+                                     Margin="0,0,3,0"
+                                     Background="Transparent"
+                                     Foreground="LightGray"
+                                     CaretBrush="Gray"
+                                     FontWeight="SemiBold"
+                                     BorderThickness="0"
+                                     VerticalContentAlignment="Center"
+                                     HorizontalContentAlignment="Right"
+                                     Text="{Binding Port, Mode=TwoWay}">
+
+                                    <Validation.ErrorTemplate>
+                                        <ControlTemplate/>
+                                    </Validation.ErrorTemplate>
+
+                                    <TextBox.InputBindings>
+                                        <KeyBinding Command="{Binding ConnectToServerCommand}" Key="Return"/>
+                                    </TextBox.InputBindings>
+                                </TextBox>
+                            </Border>
+
+                            <TextBlock Text="Port"
+                                   IsHitTestVisible="False"
+                                   VerticalAlignment="Center" 
+                                   HorizontalAlignment="Right"
+                                   Foreground="DarkGray"
+                                   FontWeight="Medium"
+                                   Margin="0,0,13,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Text, ElementName=PortInputBox}" Value="">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+
+                    </Grid>
+
+                    <Grid Grid.Row="1">
+                        <Border
+                            CornerRadius="3"
+                                Margin="8,4,8,4"
+                                Background="#3E4147">
+                            <TextBox x:Name="UsernameInputBox"
+                                 Height="25"
+                                 Margin="0"
+                                 Background="Transparent"
+                                 Foreground="LightGray"
+                                 CaretBrush="Gray"
+                                 FontWeight="SemiBold"
+                                 BorderThickness="0"
+                                 VerticalContentAlignment="Center"
+                                 HorizontalContentAlignment="Center"
+                                 Text="{Binding Username, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+
+                                <TextBox.InputBindings>
+                                    <KeyBinding Command="{Binding ConnectToServerCommand}" Key="Return"/>
+                                </TextBox.InputBindings>
+                            </TextBox>
+                        </Border>
+
+                        <TextBlock Text="Username"
+                               IsHitTestVisible="False"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"
+                               Foreground="DarkGray"
+                               FontWeight="Medium"
+                               Margin="0">
+
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text, ElementName=UsernameInputBox}" Value="">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                </Grid>
+
+                <Button Grid.Column="1"
+                        Height="32" Width="32"
+                        Margin="2,0,10,0"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        Style="{StaticResource ImageButton}"
+                        Command="{Binding ConnectToServerCommand}">
+                    <Image Width="32" Height="32"
+                           RenderOptions.BitmapScalingMode="Fant">
+                        <Image.Style>
+                            <Style TargetType="Image">
+                                <Setter Property="Source" Value="/Icons/power.png"/>
+                                <Style.Triggers>
+                                    <Trigger Property="IsEnabled" Value="True">
+                                        <Setter Property="Source" Value="/Icons/power_on.png"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Image.Style>
+                    </Image>
+                </Button>
+
+                <Button Grid.Column="1"
+                        Height="32" Width="32"
+                        Margin="2,0,10,0"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        Command="{Binding DisconnectCommand}">
+                    <Image Width="32" Height="32"
+                           RenderOptions.BitmapScalingMode="Fant"
+                           Source="/Icons/power_off.png"/>
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource ImageButton}">
+                            <Style.Triggers>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Visibility" Value="Hidden"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
+            </Grid>
+        </Grid>
+
+        <Grid Grid.Column="1" Grid.Row="1">
+
+            <Grid.RowDefinitions>
+                <RowDefinition Height="50"/>
+                <RowDefinition/>
+                <RowDefinition Height="auto"/>
+            </Grid.RowDefinitions>
+
+            <Border BorderBrush="#2F3136"
+                    BorderThickness="0,0,0,2">
+                <Label Content="The Greatest Chatroom in the World"
+                       Foreground="White"
+                       FontSize="18"
+                       FontWeight="Bold"
+                       Margin="5,0"
+                       VerticalAlignment="Center"/>
+            </Border>
+
+            <ListView Grid.Row="1"
+                      Background="Transparent"
+                      BorderThickness="0"
+                      Margin="8,0,0,0"
+                      ItemsSource="{Binding Messages}"
+                      ItemContainerStyle="{StaticResource MessageBubble}"/>
+
+            <Grid Grid.Row="2">
+
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition/>
+                    <ColumnDefinition Width="120"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.ColumnSpan="2"
+                        CornerRadius="8"
+                        Margin="8"
+                        Background="#3E4147">
+
+                    <Grid Margin="8">
+                        <emoji:EmojiedRichTextBox x:Name="MessageBox"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Stretch"
+                                                  Background="Transparent"
+                                                  Foreground="LightGray"
+                                                  CaretBrush="Gray"
+                                                  FontSize="14"
+                                                  FontWeight="Medium"
+                                                  BorderThickness="0"
+                                                  Margin="6,0,0,0"
+                                                  Padding="0,10"
+                                                  Text="{Binding Message, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+
+                            <FlowDocument>
+                                <Paragraph>
+                                    <Run Text=""/>
+                                </Paragraph>
+                            </FlowDocument>
+
+                            <emoji:EmojiedRichTextBox.InputBindings>
+                                <KeyBinding Command="{Binding SendChatCommand}" Key="Return"/>
+                            </emoji:EmojiedRichTextBox.InputBindings>
+
+                        </emoji:EmojiedRichTextBox>
+
+                        <TextBlock x:Name="MessagePlaceholder" 
+                                   IsHitTestVisible="False"
+                                   Text="@Message"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Left"
+                                   Foreground="Gray"
+                                   FontWeight="Medium"
+                                   Margin="12,0,0,0"
+                                   FontSize="14">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text, ElementName=MessageBox}" Value="">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+
+                </Border>
+
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right">
+
+                    <emoji:EmojiPicker Width="40" Height="40"
+                                       Margin="0,0,0,3"
+                                       EmojiPicked="EmojiPicker_EmojiPicked">
+                        <emoji:EmojiPicker.Style>
+                            <Style TargetType="emoji:EmojiPicker">
+                                <Style.Resources>
+                                    <Style TargetType="ToggleButton">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="BorderThickness" Value="0"/>
+                                    </Style>
+                                </Style.Resources>
+                            </Style>
+                        </emoji:EmojiPicker.Style>
+                    </emoji:EmojiPicker>
+
+                    <Button Width="25" Height="25"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Margin="5,0,20,0"
+                            Cursor="Hand"
+                            Style="{StaticResource ImageButton}"
+                            Command="{Binding SendChatCommand}">
+
+                        <Image Width="25" Height="25"
+                               RenderOptions.BitmapScalingMode="Fant">
+                            <Image.Style>
+                                <Style TargetType="Image">
+                                    <Setter Property="Source" Value="/Icons/send_fill.png"/>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsEnabled" Value="True">
+                                            <Setter Property="Source" Value="/Icons/send_fill_active.png"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Image.Style>
+                        </Image>
+                    </Button>
+
+                </StackPanel>
+            </Grid>
+
+        </Grid>
 
     </Grid>
+
 </Window>

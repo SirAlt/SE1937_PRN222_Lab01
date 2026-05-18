@@ -1,7 +1,7 @@
 ﻿using System.Net.Sockets;
 using System.Text;
 
-namespace NetIO;
+namespace NetProtocol;
 
 public class PacketReader(NetworkStream stream)
 {
