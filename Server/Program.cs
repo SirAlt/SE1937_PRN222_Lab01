@@ -14,7 +14,8 @@ class Program
     {
         using var server = new TcpListener(IPAddress.Any, 1337);
         server.Start();
-        Console.WriteLine("Server is running.");
+        Console.WriteLine("Server has started.");
+
         DisplayHostAddress(server);
 
         while (true)
@@ -45,6 +46,8 @@ class Program
 
     private static void DisplayHostAddress(TcpListener server)
     {
+        Console.WriteLine("============ IP INFO ============");
+
         var publicIPAddr = GetPublicIPAddress().Result;
         Console.WriteLine($"Public IP Address:\n\t{publicIPAddr}");
 
@@ -60,6 +63,7 @@ class Program
 
         Console.WriteLine($"Port: {((IPEndPoint)server.LocalEndpoint).Port}");
 
+        Console.WriteLine("============== *** ==============");
     }
 
     private static async Task<IPAddress?> GetPublicIPAddress()

@@ -15,19 +15,8 @@
         ResizeMode="CanResizeWithGrip">
 
     <Window.Resources>
-        <ResourceDictionary>
-
-            <core:IPAddressConverter x:Key="IPAddressConverter"/>
-
-            <Style TargetType="emoji:EmojiPicker" x:Key="EmojiPicker">
-                <Style.Resources>
-                    <Style TargetType="ToggleButton">
-                        <Setter Property="Background" Value="Transparent"/>
-                        <Setter Property="BorderThickness" Value="0"/>
-                    </Style>
-                </Style.Resources>
-            </Style>
-        </ResourceDictionary>
+        <core:IPAddressConverter x:Key="IPAddressConverter"/>
+        <core:PortConverter x:Key="PortConverter"/>
     </Window.Resources>
 
     <Window.DataContext>
@@ -119,25 +108,27 @@
                     <Grid>
 
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="11*"/>
-                            <ColumnDefinition Width="5*"/>
+                            <ColumnDefinition Width="350*"/>
+                            <ColumnDefinition Width="162*"/>
                         </Grid.ColumnDefinitions>
 
                         <Grid>
-                            <Border CornerRadius="3"
-                                Margin="8,4,2,4"
-                                Background="#3E4147">
+                            <Border CornerRadius="5,0,0,5"
+                                    Margin="8,4,0,4"
+                                    Background="#3E4147"
+                                    BorderBrush="#2F3136"
+                                    BorderThickness="0,0,1,0">
                                 <TextBox x:Name="IPInputBox"
-                                     Height="25"
-                                     Margin="0,0,3,0"
-                                     Background="Transparent"
-                                     Foreground="LightGray"
-                                     CaretBrush="Gray"
-                                     FontWeight="SemiBold"
-                                     BorderThickness="0"
-                                     VerticalContentAlignment="Center"
-                                     HorizontalContentAlignment="Right"
-                                     Text="{Binding IP, Mode=TwoWay, Converter={StaticResource IPAddressConverter}}">
+                                         Height="25"
+                                         Margin="0,0,2,0"
+                                         Background="Transparent"
+                                         Foreground="LightGray"
+                                         CaretBrush="Gray"
+                                         FontWeight="SemiBold"
+                                         BorderThickness="0"
+                                         VerticalContentAlignment="Center"
+                                         HorizontalContentAlignment="Right"
+                                         Text="{Binding IP, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource IPAddressConverter}}">
 
                                     <TextBox.InputBindings>
                                         <KeyBinding Command="{Binding ConnectToServerCommand}" Key="Return"/>
@@ -146,12 +137,12 @@
                             </Border>
 
                             <TextBlock Text="IP Address"
-                                   IsHitTestVisible="False"
-                                   VerticalAlignment="Center"
-                                   HorizontalAlignment="Right"
-                                   Foreground="DarkGray"
-                                   FontWeight="Medium"
-                                   Margin="0,0,8,0">
+                                       IsHitTestVisible="False"
+                                       VerticalAlignment="Center"
+                                       HorizontalAlignment="Right"
+                                       Foreground="DarkGray"
+                                       FontWeight="Medium"
+                                       Margin="0,0,6,0">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -166,20 +157,20 @@
                         </Grid>
 
                         <Grid Grid.Column="1">
-                            <Border CornerRadius="3"
-                                    Margin="2,4,8,4"
+                            <Border CornerRadius="0,5,5,0"
+                                    Margin="0,4,8,4"
                                     Background="#3E4147">
                                 <TextBox x:Name="PortInputBox"
-                                     Height="25"
-                                     Margin="0,0,3,0"
-                                     Background="Transparent"
-                                     Foreground="LightGray"
-                                     CaretBrush="Gray"
-                                     FontWeight="SemiBold"
-                                     BorderThickness="0"
-                                     VerticalContentAlignment="Center"
-                                     HorizontalContentAlignment="Right"
-                                     Text="{Binding Port, Mode=TwoWay}">
+                                         Height="25"
+                                         Margin="0,0,3,0"
+                                         Background="Transparent"
+                                         Foreground="LightGray"
+                                         CaretBrush="Gray"
+                                         FontWeight="SemiBold"
+                                         BorderThickness="0"
+                                         VerticalContentAlignment="Center"
+                                         HorizontalContentAlignment="Right"
+                                         Text="{Binding Port, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource PortConverter}}">
 
                                     <Validation.ErrorTemplate>
                                         <ControlTemplate/>
@@ -215,7 +206,7 @@
 
                     <Grid Grid.Row="1">
                         <Border
-                            CornerRadius="3"
+                            CornerRadius="5"
                                 Margin="8,4,8,4"
                                 Background="#3E4147">
                             <TextBox x:Name="UsernameInputBox"
