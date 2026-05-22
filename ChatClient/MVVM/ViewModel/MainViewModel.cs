@@ -253,34 +253,37 @@ public class MainViewModel : ObservableObject
                 {
                     Filter = "Image Files|*.jpeg;*.jpg;*.jpe;*.png;*.webp" + "|All Files|*.*",
                     FilterIndex = 2,
+                    Multiselect = true,
                     RestoreDirectory = true,
                 };
                 if (fileDialog.ShowDialog() == false) return;
 
-                var filepath = fileDialog.FileName;
-                var attachment = new AttachmentModel()
+                foreach (var filepath in fileDialog.FileNames)
                 {
-                    Id = Guid.NewGuid(),
-                    Filename = Path.GetFileName(filepath),
-                    SizeInBytes = new FileInfo(filepath).Length,
-                    FileClass = FileTypeHelper.GetFileClass(filepath),
+                    var attachment = new AttachmentModel()
+                    {
+                        Id = Guid.NewGuid(),
+                        Filename = Path.GetFileName(filepath),
+                        SizeInBytes = new FileInfo(filepath).Length,
+                        FileClass = FileTypeHelper.GetFileClass(filepath),
 
-                    OwningMessage = NewMessage,
+                        OwningMessage = NewMessage,
 
-                    Filepath = filepath,
-                };
+                        Filepath = filepath,
+                    };
 
-                if (attachment.IsImage)
-                {
-                    var image = attachment.ImageData = new();
-                    image.BeginInit();
-                    image.CacheOption = BitmapCacheOption.OnLoad;
-                    using var fs = File.OpenRead(filepath);
-                    image.StreamSource = fs;
-                    image.EndInit();
+                    if (attachment.IsImage)
+                    {
+                        var image = attachment.ImageData = new();
+                        image.BeginInit();
+                        image.CacheOption = BitmapCacheOption.OnLoad;
+                        using var fs = File.OpenRead(filepath);
+                        image.StreamSource = fs;
+                        image.EndInit();
+                    }
+
+                    NewMessage.Attachments.Add(attachment);
                 }
-
-                NewMessage.Attachments.Add(attachment);
             }
             );
 
@@ -322,6 +325,7 @@ public class MainViewModel : ObservableObject
                     var fileDialog = new Microsoft.Win32.SaveFileDialog()
                     {
                         FileName = attachment.Filename,
+                        Filter = "All Files|*.*",
                         RestoreDirectory = true,
                         OverwritePrompt = true,
                     };
