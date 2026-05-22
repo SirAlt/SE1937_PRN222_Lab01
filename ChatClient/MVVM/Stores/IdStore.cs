@@ -2,8 +2,8 @@
 
 public class IdStore
 {
-    public Guid NativeUID { get; set; }
-    public Guid SystemUID { get; set; }
+    public Guid NativeUid { get; set; }
+    public Guid SystemUid { get; set; }
 
     private static readonly object _lock = new();
     private static IdStore? _instance;

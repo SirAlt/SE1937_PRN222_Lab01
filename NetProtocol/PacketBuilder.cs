@@ -1,5 +1,4 @@
-﻿using System.IO;
-using System.Text;
+﻿using System.Text;
 
 namespace NetProtocol;
 
@@ -19,12 +18,27 @@ public class PacketBuilder
         return this;
     }
 
-    public PacketBuilder WriteMessage(string msg)
+    public PacketBuilder WriteMessageSection(string msg)
     {
-        if (_ms.Position == 0) _ms.Position = 1;
         var buffer = Encoding.UTF8.GetBytes(msg);
         _ms.Write(BitConverter.GetBytes(buffer.Length));
         _ms.Write(buffer);
+        return this;
+    }
+
+    public async Task<PacketBuilder> WriteMessageSectionAsync(string msg)
+    {
+        var buffer = Encoding.UTF8.GetBytes(msg);
+        await _ms.WriteAsync(BitConverter.GetBytes(buffer.Length));
+        await _ms.WriteAsync(buffer);
+        return this;
+    }
+
+    public PacketBuilder WriteDataSection(byte[] data)
+    {
+        if (_ms.Position == 0) _ms.Position = 1;
+        _ms.Write(BitConverter.GetBytes(data.Length));
+        _ms.Write(data);
         return this;
     }
 

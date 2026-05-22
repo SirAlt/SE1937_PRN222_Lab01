@@ -11,6 +11,8 @@
                 <ResourceDictionary Source="/Themes/MessageBubble.xaml"/>
                 <ResourceDictionary Source="/Themes/ImageButton.xaml"/>
                 <ResourceDictionary Source="/Themes/StylishScrollbar.xaml"/>
+                <ResourceDictionary Source="/Themes/MessageBoxAttachment.xaml"/>
+                <ResourceDictionary Source="/Themes/MessageBubbleAttachment.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

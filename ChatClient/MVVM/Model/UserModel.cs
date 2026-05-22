@@ -4,8 +4,8 @@ namespace ChatClient.MVVM.Model;
 
 public class UserModel
 {
-    public Guid UID { get; set; }
+    public Guid Uid { get; set; }
     public string Username { get; set; } = string.Empty;
 
-    public bool IsNative => UID.Equals(IdStore.Instance.NativeUID);
+    public bool IsNative => Uid.Equals(IdStore.Instance.NativeUid);
 }

@@ -4,7 +4,7 @@
     <Style TargetType="ListViewItem" x:Key="MemberCard">
 
         <Style.Triggers>
-            <DataTrigger Binding="{Binding IsSelf}" Value="True">
+            <DataTrigger Binding="{Binding IsNative}" Value="True">
                 <Setter Property="Foreground" Value="LightGreen"/>
             </DataTrigger>
         </Style.Triggers>

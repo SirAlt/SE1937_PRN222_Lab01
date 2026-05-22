@@ -3,9 +3,15 @@
 public enum OpCode
 {
     EOS = -1,
-    UIDInfo = 1,
+    Partial = 0,
+    RegisterNew = 1,
+    RegisterWorker,
+    UidInfo,
     UserList,
     NewUser,
     Chat,
-    Disconnect
+    Disconnect,
+    FileTransfer,
+    FileTransferGoAhead,
+    FileRequest,
 }

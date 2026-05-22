@@ -2,7 +2,7 @@
 
 namespace ChatClient.MVVM.Core;
 
-public class RelayCommand(Action<object?> execute, Predicate<object?> canExecute)
+public class RelayCommand(Action<object?> execute, Predicate<object?>? canExecute = null)
     : ICommand
 {
     public event EventHandler? CanExecuteChanged
@@ -11,13 +11,13 @@ public class RelayCommand(Action<object?> execute, Predicate<object?> canExecute
         remove => CommandManager.RequerySuggested -= value;
     }
 
-    public bool CanExecute(object? parameter)
-    {
-        return canExecute?.Invoke(parameter) ?? false;
-    }
-
     public void Execute(object? parameter)
     {
         execute?.Invoke(parameter);
+    }
+
+    public bool CanExecute(object? parameter)
+    {
+        return canExecute?.Invoke(parameter) ?? true;
     }
 }

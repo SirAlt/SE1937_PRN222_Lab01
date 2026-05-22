@@ -4,6 +4,10 @@
 
     <Style TargetType="ListViewItem" x:Key="MessageBubble">
 
+        <Style.Resources>
+            <ResourceDictionary Source="/Themes/MessageBubbleAttachment.xaml"/>
+        </Style.Resources>
+
         <Style.Triggers>
             <DataTrigger Binding="{Binding IsNativeOrigin}" Value="True">
                 <Setter Property="HorizontalAlignment" Value="Right"/>
@@ -46,8 +50,34 @@
                                    FontSize="11"/>
                             <emoji:EmojiedTextBlock Text="{Binding Message}"
                                                     Foreground="White"
-                                                    Padding="6"/>
-                            <Label Content="{Binding Time}"
+                                                    Padding="6">
+                                <emoji:EmojiedTextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Message}" Value="">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </emoji:EmojiedTextBlock.Style>
+                            </emoji:EmojiedTextBlock>
+                            <ListView Background="Transparent"
+                                      BorderThickness="0"
+                                      Margin="0"
+                                      ItemsSource="{Binding Attachments}"
+                                      ItemContainerStyle="{StaticResource MessageBubbleAttachment}">
+                                <ListView.Style>
+                                    <Style TargetType="ListView">
+                                        <Setter Property="Width" Value="400"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Attachments.Count}" Value="0">
+                                                <Setter Property="Width" Value="auto"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ListView.Style>
+                            </ListView>
+                            <Label Content="{Binding Timestamp}"
                                    Foreground="#A2A2A2"
                                    FontSize="10"/>
                         </StackPanel>
@@ -56,6 +86,7 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+
     </Style>
 
 </ResourceDictionary>

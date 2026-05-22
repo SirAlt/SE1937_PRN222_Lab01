@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="ChatClient/ChatClient.csproj" Id="f72d4dc9-d4ea-42c2-b9d9-4e8a61cc06da" />
   <Project Path="NetProtocol/NetProtocol.csproj" Id="2b626920-ec0c-4217-ac78-25e73da1788b" />
-  <Project Path="Server/Server.csproj" />
+  <Project Path="ChatServer/ChatServer.csproj" />
+  <Project Path="Utils/Utils.csproj" />
 </Solution>
