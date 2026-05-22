@@ -28,8 +28,26 @@ public class MessageModel : ObservableObject
 
     public ObservableCollection<AttachmentModel> Attachments { get; set; } = [];
 
+    /* Local */
+    private bool _isOnServer;
+    public bool IsOnServer
+    {
+        get => _isOnServer;
+        set
+        {
+            if (_isOnServer != value)
+            {
+                _isOnServer = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsTimedOut));
+            }
+        }
+    }
+
+    /* UI */
     public bool IsSystem => Sender.Uid.Equals(IdStore.Instance.SystemUid);
     public bool IsNativeOrigin => Sender.Uid.Equals(IdStore.Instance.NativeUid);
+    public bool IsTimedOut => IsOnServer != true && DateTime.Now - Timestamp > TimeSpan.FromSeconds(15);
     public bool HasAttachment => Attachments.Count > 0;
     public bool HasImage => Attachments.Any(e => e.IsImage && e.ImageData != null);
 

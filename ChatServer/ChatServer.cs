@@ -160,74 +160,81 @@ public class ChatServer
 
     private static async void OnClientChatted(object? sender, EventArgs e)
     {
-        if (sender is not ClientConnection clientConn)
-            return;
-
-        Console.WriteLine(">>> Server: Message read start.");
-        var msgId = clientConn.ReadNextMessageSection();
-        var msgContent = clientConn.ReadNextMessageSection();
-        var msg = new Message()
-        {
-            Id = Guid.Parse(msgId),
-            Sender = clientConn.User,
-            Timestamp = DateTime.Now,
-            Content = msgContent,
-        };
-        Console.WriteLine(">>> Server: Message read finish.");
-
-        _semaphore.Wait();
         try
         {
-            _messages.Add(msg.Id, msg);
-        }
-        finally { _semaphore.Release(); }
+            if (sender is not ClientConnection clientConn)
+                return;
 
-        var attachmentCount = int.Parse(clientConn.ReadNextMessageSection());
-        Console.WriteLine(">>> Server: Attachment count received.");
-        for (int i = 0; i < attachmentCount; i++)
-        {
-            var atcId = clientConn.ReadNextMessageSection();
-
-            var filename = clientConn.ReadNextMessageSection();
-            var safeFilename = FileInfoHelper.SanitizeFilenameWin32(filename);
-            var filePath = GetUniqueFilePath();
-
-            var size = clientConn.ReadNextMessageSection();
-
-            var attachment = new Attachment()
+            Console.WriteLine(">>> Server: Message read start.");
+            var msgId = clientConn.ReadNextMessageSection();
+            var msgContent = clientConn.ReadNextMessageSection();
+            var msg = new Message()
             {
-                Id = Guid.Parse(atcId),
-                Filename = filename,
-                SizeInBytes = long.Parse(size),
-                FileClass = FileTypeHelper.GetFileClass(filename),
-                IsAvailable = false,
-
-                OwningMessage = msg,
-
-                Filepath = filePath,
+                Id = Guid.Parse(msgId),
+                Sender = clientConn.User,
+                Timestamp = DateTime.Now,
+                Content = msgContent,
             };
-            msg.Attachments.Add(attachment);
-            Console.WriteLine(">>> Server: Attachment info received.");
+            Console.WriteLine(">>> Server: Message read finish.");
 
-            string GetUniqueFilePath()
+            _semaphore.Wait();
+            try
             {
-                var safeFnWoExt = Path.GetFileNameWithoutExtension(safeFilename);
-                var ext = Path.GetExtension(safeFilename);
-                string filepath;
-                do
-                {
-                    filepath = /*Path.GetTempPath()*/ Path.GetFullPath("C:\\Users\\Admin\\Desktop\\test\\server\\") + safeFnWoExt + DateTime.Now.ToString("_yyyyMMddHHmmssffff") + ext;
-                } while (Path.Exists(filepath));
-                return filepath;
+                _messages.Add(msg.Id, msg);
             }
+            finally { _semaphore.Release(); }
+
+            var attachmentCount = int.Parse(clientConn.ReadNextMessageSection());
+            Console.WriteLine(">>> Server: Attachment count received.");
+            for (int i = 0; i < attachmentCount; i++)
+            {
+                var atcId = clientConn.ReadNextMessageSection();
+
+                var filename = clientConn.ReadNextMessageSection();
+                var safeFilename = FileInfoHelper.SanitizeFilenameWin32(filename);
+                var filePath = GetUniqueFilePath();
+
+                var size = clientConn.ReadNextMessageSection();
+
+                var attachment = new Attachment()
+                {
+                    Id = Guid.Parse(atcId),
+                    Filename = filename,
+                    SizeInBytes = long.Parse(size),
+                    FileClass = FileTypeHelper.GetFileClass(filename),
+                    IsAvailable = false,
+
+                    OwningMessage = msg,
+
+                    Filepath = filePath,
+                };
+                msg.Attachments.Add(attachment);
+                Console.WriteLine(">>> Server: Attachment info received.");
+
+                string GetUniqueFilePath()
+                {
+                    var safeFnWoExt = Path.GetFileNameWithoutExtension(safeFilename);
+                    var ext = Path.GetExtension(safeFilename);
+                    string filepath;
+                    do
+                    {
+                        filepath = /*Path.GetTempPath()*/ Path.GetFullPath("C:\\Users\\Admin\\Desktop\\test\\server\\") + safeFnWoExt + DateTime.Now.ToString("_yyyyMMddHHmmssffff") + ext;
+                    } while (Path.Exists(filepath));
+                    return filepath;
+                }
+            }
+            await clientConn.Send(OpCode.FileTransferGoAhead);
+
+            Console.WriteLine($"[{DateTime.Now}]\tReceived chat message from '{clientConn.User.Username}' w/ {attachmentCount} attachment(s): {msgContent}");
+
+            Console.WriteLine(">>> Server: Message relay start.");
+            BroadcastChatMessage(clientConn, msg).Wait();
+            Console.WriteLine(">>> Server: Message relay finish.");
         }
-        await clientConn.Send(OpCode.FileTransferGoAhead);
-
-        Console.WriteLine($"[{DateTime.Now}]\tReceived chat message from '{clientConn.User.Username}' w/ {attachmentCount} attachment(s): {msgContent}");
-
-        Console.WriteLine(">>> Server: Message relay start.");
-        BroadcastChatMessage(clientConn, msg).Wait();
-        Console.WriteLine(">>> Server: Message relay finish.");
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error receiving chat message from client: " + ex.Message);
+        }
     }
 
     private static async Task BroadcastChatMessage(ClientConnection sender, Message msg)
@@ -269,20 +276,27 @@ public class ChatServer
         if (sender is not ClientConnection clientConn)
             return;
 
-        var atc = GetAttachment(clientConn);
-        Console.WriteLine($">>> Server: Message [{atc.OwningMessage?.Id}] will receive attachment [{atc.Id}] shortly.");
-
-        using (var fs = new FileStream(atc.Filepath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous))
+        try
         {
-            Console.WriteLine(">>> Server: File data read start.");
-            clientConn.ReadNextDataSectionAsync(fs).Wait();
-            Console.WriteLine(">>> Server: File data read finish.");
-        }
+            var atc = GetAttachment(clientConn);
+            Console.WriteLine($">>> Server: Message [{atc.OwningMessage?.Id}] will receive attachment '{atc.Filename}' [{atc.Id}] shortly.");
 
-        Console.WriteLine(">>> Server: File check start.");
-        atc.FileClass = FileTypeHelper.GetFileClass(atc.Filepath, verifyFileSignature: true);
-        atc.IsAvailable = true;
-        Console.WriteLine(">>> Server: File check finish.");
+            using (var fs = new FileStream(atc.Filepath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous))
+            {
+                Console.WriteLine(">>> Server: File data read start.");
+                clientConn.ReadNextDataSectionAsync(fs).Wait();
+                Console.WriteLine(">>> Server: File data read finish.");
+            }
+
+            Console.WriteLine(">>> Server: File check start.");
+            atc.FileClass = FileTypeHelper.GetFileClass(atc.Filepath, verifyFileSignature: true);
+            atc.IsAvailable = true;
+            Console.WriteLine(">>> Server: File check finish.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error receiving file from client: " + ex.Message);
+        }
     }
 
     private static async void OnFileRequested(object? sender, EventArgs e)
@@ -290,20 +304,28 @@ public class ChatServer
         if (sender is not ClientConnection clientConn)
             return;
 
-        var atc = GetAttachment(clientConn);
-        Console.WriteLine($">>> Server: Checking attachment [{atc.Id}] of message [{atc.OwningMessage?.Id}].");
-        if (!atc.IsAvailable)
+        try
         {
-            //throw new Exception($"File '{atc.Filepath}' [{atc.Id}] is not currently available.");
-            await clientConn.Send(OpCode.FileRequestResponse, false.ToString());
-            return;
-        }
+            var atc = GetAttachment(clientConn);
+            Console.WriteLine($">>> Server: Checking attachment [{atc.Id}] of message [{atc.OwningMessage?.Id}].");
+            if (!atc.IsAvailable)
+            {
+                //throw new Exception($"File '{atc.Filepath}' [{atc.Id}] is not currently available.");
+                Console.WriteLine($">>> Server: Request denied -- attachment [{atc.Id}] of message [{atc.OwningMessage?.Id}] is not available.");
+                await clientConn.Send(OpCode.FileRequestResponse, false.ToString());
+                return;
+            }
 
-        Console.WriteLine(">>> Server: Sending availability response.");
-        await clientConn.Send(OpCode.FileRequestResponse, true.ToString());
-        Console.WriteLine(">>> Server: File data write start.");
-        await clientConn.SendFile(atc.Filepath);
-        Console.WriteLine(">>> Server: File data write finish.");
+            Console.WriteLine($">>> Server: Request accepted -- attachment [{atc.Id}] of message [{atc.OwningMessage?.Id}] will be transferred.");
+            await clientConn.Send(OpCode.FileRequestResponse, true.ToString());
+            Console.WriteLine(">>> Server: File data write start.");
+            await clientConn.SendFile(atc.Filepath);
+            Console.WriteLine(">>> Server: File data write finish.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error responding to file request from client: " + ex.Message);
+        }
     }
 
     private static Attachment GetAttachment(ClientConnection clientConn)
@@ -325,22 +347,28 @@ public class ChatServer
     {
         if (sender is not ClientConnection clientConn)
             return;
-
-        clientConn.Terminate();
-        foreach (var workerConn in clientConn.User.WorkerConnections.Values)
-        {
-            workerConn.Terminate();
-        }
-
-        await _semaphore.WaitAsync();
         try
         {
-            _users.Remove(clientConn.User.Uid);
-        }
-        finally { _semaphore.Release(); }
+            clientConn.Terminate();
+            foreach (var workerConn in clientConn.User.WorkerConnections.Values)
+            {
+                workerConn.Terminate();
+            }
 
-        Console.WriteLine($"[{DateTime.Now}]\t'{clientConn.User.Username}' [{clientConn.User.Uid}] has left the chat.");
-        await BroadcastDisconnect(clientConn);
+            await _semaphore.WaitAsync();
+            try
+            {
+                _users.Remove(clientConn.User.Uid);
+            }
+            finally { _semaphore.Release(); }
+
+            Console.WriteLine($"[{DateTime.Now}]\t'{clientConn.User.Username}' [{clientConn.User.Uid}] has left the chat.");
+            await BroadcastDisconnect(clientConn);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error disconnecting client: " + ex.Message);
+        }
     }
 
     private static async Task BroadcastDisconnect(ClientConnection leaver)

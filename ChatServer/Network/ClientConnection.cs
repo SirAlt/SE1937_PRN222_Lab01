@@ -91,12 +91,12 @@ public class ClientConnection(User user, TcpClient tcpClient)
             }
             catch (IOException ex)
             {
-                Console.WriteLine($"I/O error handling worker socket #{Environment.CurrentManagedThreadId} of client {User.Username} [{User.Uid}]: " + ex.Message);
+                Console.WriteLine($"I/O error handling worker socket #{Environment.CurrentManagedThreadId} of client '{User.Username}' [{User.Uid}]: " + ex.Message);
                 goto DISCONNECT;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error handling worker socket #{Environment.CurrentManagedThreadId} of client {User.Username} [{User.Uid}]: " + ex.Message);
+                Console.WriteLine($"Error handling worker socket #{Environment.CurrentManagedThreadId} of client '{User.Username}' [{User.Uid}]: " + ex.Message);
                 goto DISCONNECT;
             }
         }
@@ -155,7 +155,7 @@ public class ClientConnection(User user, TcpClient tcpClient)
 
     public void Terminate()
     {
-        _tcpClient.Client.Shutdown(SocketShutdown.Both);
+        //_tcpClient.Client.Shutdown(SocketShutdown.Both);
         _tcpClient.Close();
     }
 }

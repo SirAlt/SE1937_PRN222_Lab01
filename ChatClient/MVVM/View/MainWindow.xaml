@@ -378,7 +378,8 @@
                                     </FlowDocument>
 
                                     <emoji:EmojiedRichTextBox.InputBindings>
-                                        <KeyBinding Command="{Binding SendChatCommand}" Key="Return"/>
+                                        <KeyBinding Key="Return" Command="{Binding SendChatCommand}"/>
+                                        <KeyBinding Gesture="Ctrl+V" Command="{Binding PasteClipboardCommand}" CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=RichTextBox}}"/>
                                     </emoji:EmojiedRichTextBox.InputBindings>
 
                                 </emoji:EmojiedRichTextBox>

@@ -6,6 +6,7 @@
 
         <Style.Resources>
             <core:ByteUnitConverter x:Key="ByteUnitConverter"/>
+            <core:ByteUnitUnitlessConverter x:Key="ByteUnitUnitlessConverter"/>
         </Style.Resources>
 
         <Setter Property="Background" Value="Transparent"/>
@@ -35,31 +36,100 @@
                                 <Label Content="{Binding Filename}"
                                        Foreground="White"
                                        HorizontalAlignment="Left"/>
-                                <Grid>
-                                    <Label Content="{Binding SizeInBytes, Converter={StaticResource ByteUnitConverter}}"
-                                           Foreground="#A2A2A2"
-                                           HorizontalAlignment="Left"/>
-                                    <Button Width="20" Height="20"
-                                            Margin="0,0,5,0"
-                                            HorizontalAlignment="Right"
-                                            Style="{StaticResource ImageButton}"
-                                            Command="{Binding DataContext.DownloadFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                            CommandParameter="{Binding}">
-                                        <Image Width="20" Height="20"
-                                               RenderOptions.BitmapScalingMode="Fant">
-                                            <Image.Style>
-                                                <Style TargetType="Image">
-                                                    <Setter Property="Source" Value="/Icons/download.png"/>
-                                                    <Style.Triggers>
-                                                        <Trigger Property="IsEnabled" Value="True">
-                                                            <Setter Property="Source" Value="/Icons/download_active.png"/>
-                                                        </Trigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Image.Style>
-                                        </Image>
-                                    </Button>
-                                </Grid>
+
+                                <Label>
+                                    <Label.Style>
+                                        <Style TargetType="Label">
+
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="Label">
+                                                        <Grid>
+                                                            <Label Content="{Binding SizeInBytes, Converter={StaticResource ByteUnitConverter}}"
+                                                                   Foreground="#A2A2A2"
+                                                                   HorizontalAlignment="Left"/>
+                                                            <Button Width="20" Height="20"
+                                                                    Margin="0,0,5,0"
+                                                                    HorizontalAlignment="Right"
+                                                                    Style="{StaticResource ImageButton}"
+                                                                    Command="{Binding DataContext.DownloadFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                    CommandParameter="{Binding}">
+                                                                <Image Width="20" Height="20"
+                                                                       RenderOptions.BitmapScalingMode="Fant">
+                                                                    <Image.Style>
+                                                                        <Style TargetType="Image">
+                                                                            <Setter Property="Source" Value="/Icons/download.png"/>
+                                                                            <Style.Triggers>
+                                                                                <Trigger Property="IsEnabled" Value="True">
+                                                                                    <Setter Property="Source" Value="/Icons/download_active.png"/>
+                                                                                </Trigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Image.Style>
+                                                                </Image>
+                                                            </Button>
+                                                        </Grid>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsTransferring}" Value="true">
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="Label">
+                                                                <Grid>
+
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="auto"/>
+                                                                        <ColumnDefinition/>
+                                                                        <ColumnDefinition Width="auto"/>
+                                                                        <ColumnDefinition Width="auto"/>
+                                                                    </Grid.ColumnDefinitions>
+
+                                                                    <ProgressBar Value="{Binding ProgressPercentage, Mode=OneWay}" Width="200">
+                                                                        <ProgressBar.Template>
+                                                                            <ControlTemplate TargetType="ProgressBar">
+                                                                                <Border BorderBrush="#D9DCE1" 
+                                                                                        BorderThickness="0"
+                                                                                        Background="#454E59"
+                                                                                        CornerRadius="6"
+                                                                                        Height="10"
+                                                                                        Padding="0">
+                                                                                    <Grid x:Name="PART_Track">
+                                                                                        <Rectangle x:Name="PART_Indicator"
+                                                                                                   Fill="#FF66A6FF"
+                                                                                                   HorizontalAlignment="Left"
+                                                                                                   RenderTransformOrigin="0,0"
+                                                                                                   RadiusX="6" RadiusY="6"/>
+                                                                                    </Grid>
+                                                                                </Border>
+                                                                            </ControlTemplate>
+                                                                        </ProgressBar.Template>
+                                                                    </ProgressBar>
+                                                                    <Label Grid.Column="1"
+                                                                           HorizontalAlignment="Right"
+                                                                           HorizontalContentAlignment="Right"
+                                                                           Content="{Binding ProgressByte, Converter={StaticResource ByteUnitUnitlessConverter}}"
+                                                                           Foreground="#A2A2A2"/>
+                                                                    <Label Grid.Column="2"
+                                                                           Content="/"
+                                                                           Foreground="#A2A2A2"/>
+                                                                    <Label Grid.Column="3"
+                                                                           Content="{Binding SizeInBytes, Converter={StaticResource ByteUnitConverter}}"
+                                                                           Foreground="#A2A2A2"/>
+                                                                </Grid>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+
+                                        </Style>
+                                    </Label.Style>
+
+                                </Label>
+
                             </StackPanel>
 
                         </Grid>
@@ -87,7 +157,7 @@
                                 </Image.Source>
                                 <Image.InputBindings>
                                     <MouseBinding Gesture="LeftClick" 
-                                                  Command="{Binding DataContext.DownloadImageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                  Command="{Binding DataContext.SaveImageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                   CommandParameter="{Binding}"/>
                                 </Image.InputBindings>
                             </Image>

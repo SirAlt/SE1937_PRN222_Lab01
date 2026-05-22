@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using Utils;
 using Utils.FileSystem;
@@ -65,7 +66,7 @@ public class MainViewModel : ObservableObject
         //Content = "La diddo didda!",
         //Attachments = [new() {
         //    Filename = "The Throngler and the O Poor Throngled",
-        //    SizeInBytes = 1024,
+        //    SizeInBytes = 1337,
         //    FileClass = FileClass.Image,
         //}],
     };
@@ -88,10 +89,11 @@ public class MainViewModel : ObservableObject
     public RelayCommand ConnectToServerCommand { get; set; }
     public RelayCommand SendChatCommand { get; set; }
     public RelayCommand DisconnectCommand { get; set; }
+    public RelayCommand PasteClipboardCommand { get; set; }
     public RelayCommand AttachFileCommand { get; set; }
     public RelayCommand RemoveAttachmentCommand { get; set; }
     public RelayCommand DownloadFileCommand { get; set; }
-    public RelayCommand DownloadImageCommand { get; set; }
+    public RelayCommand SaveImageCommand { get; set; }
 
     private UserModel? _system;
     private UserModel System => _system ??= new()
@@ -99,6 +101,8 @@ public class MainViewModel : ObservableObject
         Uid = IdStore.Instance.SystemUid,
         Username = "SYSTEM",
     };
+
+    private UserModel? _nativeUser;
 
     private ServerConnection? _serverConn;
 
@@ -134,12 +138,17 @@ public class MainViewModel : ObservableObject
         SendChatCommand = new(
             async o =>
             {
-                if (NewMessage.Attachments.Count > byte.MaxValue)
-                    throw new Exception("Hold it right there, sport! That's too many attachments for one messsage, dunchathink?");
-
-                Debug.WriteLine(">>> Client: Send start.");
+                Debug.WriteLine(">>> Client: Reading message box.");
                 var msg = NewMessage;
-                NewMessage = new() { Id = Guid.NewGuid() };
+                NewMessage = new()
+                {
+                    Id = Guid.NewGuid(),
+                    Sender = _nativeUser!,
+                };
+
+                msg.Timestamp = DateTime.Now;
+                Messages.Add(msg);
+                Debug.WriteLine(">>> Client: Added local message to chatlist. Sending message to server.");
 
                 await _serverConn!.Send(OpCode.Chat, msg.Id.ToString(), msg.Content);
                 Debug.WriteLine($">>> Client: Message [{msg.Id}] sent.");
@@ -165,13 +174,76 @@ public class MainViewModel : ObservableObject
                 {
                     var workerConn = await SpawnWorkerSocket();
                     Debug.WriteLine(">>> Client: Worker spawned.");
-                    await workerConn.SendFileAsAttachment(msg.Id, attachment.Id, attachment.Filepath);
+
+                    attachment.IsTransferring = true;
+                    await workerConn.SendFileAsAttachment(msg.Id, attachment.Id, attachment.Filepath, UpdateUploadProgress);
+                    attachment.IsTransferring = false;
+
                     workerConn.DisconnectFromServer();
                     Debug.WriteLine(">>> Client: Worker terminated.");
+
+                    void UpdateUploadProgress(object? sender, ProgressEventArgs e)
+                    {
+                        attachment.ProgressByte = e.Progress;
+                    }
                 });
             },
-            o => _serverConn != null && _serverConn.Connected
+            o => _serverConn != null && _serverConn.Connected && _nativeUser != null
                 && (!string.IsNullOrWhiteSpace(NewMessage.Content) || NewMessage.Attachments.Count > 0)
+            );
+
+        PasteClipboardCommand = new(
+            o =>
+            {
+                if (o is not RichTextBox rtb)
+                    return;
+
+                if (Clipboard.ContainsImage())
+                {
+                    var bitmapSource = Clipboard.GetImage();
+                    var bitmapImage = new BitmapImage();
+
+                    var encoder = new PngBitmapEncoder();
+                    encoder.Frames.Add(BitmapFrame.Create(bitmapSource));
+
+                    var filepath = "";
+                    do
+                    {
+                        filepath = Path.GetTempPath() + Path.GetRandomFileName();
+                        filepath = filepath.Replace(Path.GetExtension(filepath), ".png");
+                    } while (Path.Exists(filepath));
+                    using var fs = new FileStream(
+                        filepath,
+                        FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 4096, FileOptions.Asynchronous);
+                    encoder.Save(fs);
+                    fs.Position = 0;
+
+                    bitmapImage.BeginInit();
+                    bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmapImage.StreamSource = fs;
+                    bitmapImage.EndInit();
+                    bitmapImage.Freeze();
+
+                    var attachment = new AttachmentModel()
+                    {
+                        Id = Guid.NewGuid(),
+                        Filename = Path.GetFileName(filepath),
+                        SizeInBytes = new FileInfo(filepath).Length,
+                        FileClass = FileClass.Image,
+
+                        OwningMessage = NewMessage,
+
+                        Filepath = filepath,
+
+                        ImageData = bitmapImage,
+                    };
+                    NewMessage.Attachments.Add(attachment);
+                }
+                else
+                {
+                    rtb.Paste();
+                }
+            }
             );
 
         AttachFileCommand = new(
@@ -253,23 +325,30 @@ public class MainViewModel : ObservableObject
                         RestoreDirectory = true,
                         OverwritePrompt = true,
                     };
-                    if (fileDialog.ShowDialog() == false) return;
-                    Debug.WriteLine($">>> Client: Got path. Continuing to file transmission.");
+                    if (fileDialog.ShowDialog() == false)
+                        throw new IOException();    // Shut down the socket.
+                    Debug.WriteLine($">>> Client: User has chosen save path. Continuing to file transmission.");
 
                     using var fs = new FileStream(fileDialog.FileName, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous);
-                    var ps = new ProgressStream(fs);
-                    ps.ProgressUpdated += (s, e) => { };
+                    var ps = new ProgressStream(fs, attachment.SizeInBytes);
+                    ps.ProgressUpdated += (s, e) =>
+                    {
+                        attachment.ProgressByte = e.Progress;
+                    };
                     Debug.WriteLine($">>> Client: File transmission start.");
+                    attachment.IsTransferring = true;
                     workerConn.ReadNextDataSectionAsync(ps).Wait();
+                    attachment.IsTransferring = false;
                     Debug.WriteLine($">>> Client: File transmission finish.");
 
                     workerConn.DisconnectFromServer();
                     Debug.WriteLine($">>> Client: Worker #{Environment.CurrentManagedThreadId} disconnected.");
                 }
-            }
+            },
+            o => _serverConn != null && _serverConn.Connected
             );
 
-        DownloadImageCommand = new(
+        SaveImageCommand = new(
             o =>
             {
                 if (o is not AttachmentModel attachment)
@@ -288,11 +367,12 @@ public class MainViewModel : ObservableObject
                 encoder.Frames.Add(BitmapFrame.Create(image));
 
                 using var fileStream = new FileStream(
-                    fileDialog.FileName, 
+                    fileDialog.FileName,
                     FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous);
                 encoder.Save(fileStream);
             },
-            o => o is AttachmentModel { IsImage: true, ImageData: not null }
+            o => _serverConn != null && _serverConn.Connected
+            && o is AttachmentModel { IsImage: true, ImageData: not null }
             );
 
         DisconnectCommand = new(
@@ -336,16 +416,23 @@ public class MainViewModel : ObservableObject
         if (sender is not ServerConnection serverConn)
             return;
 
-        var uid = Guid.Parse(serverConn.ReadNextMessageSection());
+        var uid = serverConn.ReadNextMessageSection();
+        var username = serverConn.ReadNextMessageSection();
+
         var user = new UserModel()
         {
-            Uid = uid,
-            Username = serverConn.ReadNextMessageSection(),
+            Uid = Guid.Parse(uid),
+            Username = username,
         };
 
         if (!Users.Any(u => u.Uid == user.Uid))
         {
             Application.Current.Dispatcher.Invoke(() => Users.Add(user));
+        }
+
+        if (_nativeUser == null && user.Uid == IdStore.Instance.NativeUid)
+        {
+            NewMessage.Sender = _nativeUser = user;
         }
     }
 
@@ -354,11 +441,13 @@ public class MainViewModel : ObservableObject
         if (sender is not ServerConnection serverConn)
             return;
 
-        var uid = Guid.Parse(serverConn.ReadNextMessageSection());
+        var uid = serverConn.ReadNextMessageSection();
+        var username = serverConn.ReadNextMessageSection();
+
         var newbie = new UserModel()
         {
-            Uid = uid,
-            Username = serverConn.ReadNextMessageSection(),
+            Uid = Guid.Parse(uid),
+            Username = username,
         };
 
         var newbieMsg = new MessageModel()
@@ -381,10 +470,16 @@ public class MainViewModel : ObservableObject
         if (sender is not ServerConnection serverConn)
             return;
 
+        bool isEcho = false;
+
         var msgId = serverConn.ReadNextMessageSection();
         var uid = serverConn.ReadNextMessageSection();
         var time = serverConn.ReadNextMessageSection();
-        var msg = serverConn.ReadNextMessageSection();
+        var content = serverConn.ReadNextMessageSection();
+
+        var messageId = Guid.Parse(msgId);
+        var message = Messages.FirstOrDefault(e => e.Id == messageId);
+        ;
 
         var senderUser = Users.FirstOrDefault(
             u => u.Uid == Guid.Parse(uid),
@@ -393,43 +488,65 @@ public class MainViewModel : ObservableObject
         if (!DateTime.TryParse(time, out var timestamp))
             timestamp = DateTime.Now;
 
-        var message = new MessageModel()
+        if (isEcho = message != null)
         {
-            Id = Guid.Parse(msgId),
-            Sender = senderUser,
-            Timestamp = timestamp,
-            Content = msg,
-        };
+            message!.Sender = senderUser;
+            message.Timestamp = timestamp;
+            message.Content = content;
+
+            message.IsOnServer = true;
+        }
+        else
+        {
+            message = new MessageModel()
+            {
+                Id = messageId,
+                Sender = senderUser,
+                Timestamp = timestamp,
+                Content = content,
+            };
+        }
 
         var atcCnt = serverConn.ReadNextMessageSection();
         var attachmentCount = int.Parse(atcCnt);
         for (int i = 0; i < attachmentCount; i++)
         {
-            var attachId = serverConn.ReadNextMessageSection();
+            var atcId = serverConn.ReadNextMessageSection();
             var filename = serverConn.ReadNextMessageSection();
             var sizeInBytes = serverConn.ReadNextMessageSection();
             var fileClass = serverConn.ReadNextMessageSection();
 
-            var attachment = new AttachmentModel()
+            AttachmentModel? attachment;
+            var attachmentId = Guid.Parse(atcId);
+            if (isEcho && (attachment = message.Attachments.FirstOrDefault(e => e.Id == attachmentId)) != null)
             {
-                Id = Guid.Parse(attachId),
-                Filename = filename,
-                SizeInBytes = long.Parse(sizeInBytes),
-                FileClass = (FileClass)Enum.Parse(typeof(FileClass), fileClass),
+                attachment.Filename = filename;
+                attachment.SizeInBytes = long.Parse(sizeInBytes);
+                attachment.FileClass = (FileClass)Enum.Parse(typeof(FileClass), fileClass);
+            }
+            else
+            {
+                attachment = new AttachmentModel()
+                {
+                    Id = attachmentId,
+                    Filename = filename,
+                    SizeInBytes = long.Parse(sizeInBytes),
+                    FileClass = (FileClass)Enum.Parse(typeof(FileClass), fileClass),
 
-                OwningMessage = message,
-            };
-            message.Attachments.Add(attachment);
+                    OwningMessage = message,
+                };
+                message.Attachments.Add(attachment);
+            }
 
-            if (attachment.IsImage)
+            if (!isEcho && attachment.IsImage)
             {
                 _ = AutoRequestImageFile();
             }
 
             async Task AutoRequestImageFile()
             {
-                int retryCount = 5;
-                int delay = 5_000;
+                int retryCount = 10;
+                int delay = 3_000;
 
                 var workerConn = await SpawnWorkerSocket();
                 workerConn.FileRequestAnswered += ReceiveImage;
@@ -466,7 +583,7 @@ public class MainViewModel : ObservableObject
                     Debug.WriteLine($">>> Client: Available. Yay.");
 
                     using var ms = new MemoryStream();
-                    var ps = new ProgressStream(ms);
+                    var ps = new ProgressStream(ms, attachment.SizeInBytes);
                     ps.ProgressUpdated += (s, e) => { };
                     Debug.WriteLine($">>> Client: File transmission start.");
                     workerConn.ReadNextDataSectionAsync(ps).Wait();
@@ -488,7 +605,10 @@ public class MainViewModel : ObservableObject
             }
         }
 
-        Application.Current.Dispatcher.Invoke(() => Messages.Add(message));
+        if (!isEcho)
+        {
+            Application.Current.Dispatcher.Invoke(() => Messages.Add(message));
+        }
     }
 
     private void OnUserDisconnect(object? sender, EventArgs e)
