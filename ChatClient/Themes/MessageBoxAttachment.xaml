@@ -32,7 +32,7 @@
                             <Button Width="15" Height="15"
                                     HorizontalAlignment="Right"
                                     Style="{StaticResource ImageButton}"
-                                    Command="{Binding DataContext.RemoveAttachmentCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                    Command="{Binding DataContext.RemoveAttachmentCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                     CommandParameter="{Binding}">
                                 <Image Width="15" Height="15"
                                        Margin="0,2,2,0"

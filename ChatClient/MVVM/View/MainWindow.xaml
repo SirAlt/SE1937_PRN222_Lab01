@@ -369,7 +369,7 @@
                                                           BorderThickness="0"
                                                           Margin="6,0,0,0"
                                                           Padding="0,2"
-                                                          Text="{Binding NewMessage.Message, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                          Text="{Binding NewMessage.Content, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
 
                                     <FlowDocument>
                                         <Paragraph>
@@ -448,10 +448,10 @@
                                        RenderOptions.BitmapScalingMode="Fant">
                                     <Image.Style>
                                         <Style TargetType="Image">
-                                            <Setter Property="Source" Value="/Icons/send_fill.png"/>
+                                            <Setter Property="Source" Value="/Icons/send.png"/>
                                             <Style.Triggers>
                                                 <Trigger Property="IsEnabled" Value="True">
-                                                    <Setter Property="Source" Value="/Icons/send_fill_active.png"/>
+                                                    <Setter Property="Source" Value="/Icons/send_active.png"/>
                                                 </Trigger>
                                             </Style.Triggers>
                                         </Style>

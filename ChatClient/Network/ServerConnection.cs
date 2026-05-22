@@ -14,9 +14,12 @@ public class ServerConnection
     public event EventHandler? UidInfoReceived;
     public event EventHandler? UserListUpdated;
     public event EventHandler? UserChatted;
+    public event EventHandler? FileRequestAnswered;
     public event EventHandler? UserLeft;
 
     public readonly SemaphoreSlim FileTransferGoAheadSignal = new(0);
+
+    public bool IsMain { get; private set; }
 
     public bool Connected => _tcpClient.Connected;
     public IPAddress? IP => ((IPEndPoint?)_tcpClient.Client.RemoteEndPoint)?.Address;
@@ -47,7 +50,7 @@ public class ServerConnection
                 .Build();
             _tcpClient.GetStream().Write(packet);
 
-            _listenerTask = Task.Run(ProcessChatConn);
+            IsMain = true;
         }
         catch (Exception ex)
         {
@@ -68,6 +71,16 @@ public class ServerConnection
             .WriteMessageSection(uid.ToString())
             .Build();
         _tcpClient.GetStream().Write(packet);
+
+        IsMain = false;
+    }
+
+    public void BeginListen()
+    {
+        if (IsMain)
+            _listenerTask = Task.Run(ProcessChatConn);
+        else
+            _listenerTask = Task.Run(ProcessWorkerConn);
     }
 
     private void ProcessChatConn()
@@ -117,11 +130,50 @@ public class ServerConnection
     DISCONNECT:;    // Die gracefully (｡•́⩍•̀｡)
     }
 
+    private void ProcessWorkerConn()
+    {
+        while (true)
+        {
+            try
+            {
+                if (_packetReader == null)
+                    break;
+
+                var opcode = _packetReader.ReadOpCode();
+                Debug.WriteLine($">>> Client: Worker listener received opcode [{opcode}]");
+                switch (opcode)
+                {
+                    case OpCode.FileRequestResponse:
+                        FileRequestAnswered?.Invoke(this, EventArgs.Empty);
+                        break;
+                    case OpCode.EOS:
+                        goto DISCONNECT;
+                    default:
+                        ViewUtils.Error("Hmm...", "OpCode Error");
+                        break;
+                }
+            }
+            catch (IOException)
+            {
+                _tcpClient.Client.Shutdown(SocketShutdown.Both);
+                _tcpClient.Close();
+            }
+        }
+    DISCONNECT:;    // Die gracefully (｡•́⩍•̀｡)
+    }
+
     public string ReadNextMessageSection()
     {
         if (!_tcpClient.Connected || _packetReader == null)
             throw new Exception("Not connected to server.");
         return _packetReader.ReadMessageSection();
+    }
+
+    public async Task ReadNextDataSectionAsync(Stream output)
+    {
+        if (!_tcpClient.Connected || _packetReader == null)
+            throw new Exception("Not connected to server.");
+        await _packetReader.ReadDataSectionAsync(output);
     }
 
     public async Task Send(OpCode opcode = 0, params string[] messages)
@@ -155,6 +207,7 @@ public class ServerConnection
 
         var ns = _tcpClient.GetStream();
 
+        /* ID */
         var packet = new PacketBuilder()
             .WriteOpCode(OpCode.FileTransfer)
             .WriteMessageSection(messageId.ToString())
@@ -165,6 +218,7 @@ public class ServerConnection
 
         using var fs = new FileStream(filepath!, FileMode.Open, FileAccess.Read, FileShare.None, 4096, FileOptions.Asynchronous);
 
+        /* Binary data */
         Debug.WriteLine(">>> Client: Attachment data transmission start.");
         var lenBuffer = BitConverter.GetBytes(fs.Length);
         await ns.WriteAsync(lenBuffer);
@@ -175,10 +229,12 @@ public class ServerConnection
         Debug.WriteLine(">>> Client: Attachment data transmission finish.");
     }
 
-    public void DisconnectFromServer()
+    public void DisconnectFromServer(bool waitForListener = false)
     {
         _tcpClient.Client.Shutdown(SocketShutdown.Both);
-        _listenerTask?.Wait();  // We've closed the socket, wait for the listener thread to die gracefully, lest we get WSAECONNABORTED (socket closed by WinSock) when it tries to read the NetworkStream.
+        // We've closed the socket, wait for the listener thread to die gracefully,
+        // else we get WSAECONNABORTED (socket closed by WinSock) when it tries to read the NetworkStream.
+        if (waitForListener) _listenerTask?.Wait();
         _tcpClient.Close();
     }
 }

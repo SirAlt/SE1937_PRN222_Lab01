@@ -9,5 +9,5 @@ public class User
     public string Username { get; set; } = string.Empty;
 
     public ClientConnection MainConnection { get; set; } = null!;
-    public ConcurrentQueue<ClientConnection> WorkerConnections { get; set; } = [];
+    public ConcurrentDictionary<string, ClientConnection> WorkerConnections { get; set; } = [];
 }

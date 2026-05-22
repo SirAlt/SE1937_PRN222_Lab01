@@ -44,6 +44,7 @@ public class ChatServer
                 else
                 {
                     clientConn.FileTransferred += OnFileTransferred;
+                    clientConn.FileRequested += OnFileRequested;
                 }
 
                 clientConn.BeginListen();
@@ -111,7 +112,7 @@ public class ChatServer
                     {
                         IsMain = false,
                     };
-                    user.WorkerConnections.Enqueue(clientConn);
+                    user.WorkerConnections.TryAdd(uid.ToString() + Environment.CurrentManagedThreadId, clientConn);
                     return clientConn;
                 default:
                     throw new Exception("Invalid opcode for registration.");
@@ -201,6 +202,8 @@ public class ChatServer
                 FileClass = FileTypeHelper.GetFileClass(filename),
                 IsAvailable = false,
 
+                OwningMessage = msg,
+
                 Filepath = filePath,
             };
             msg.Attachments.Add(attachment);
@@ -213,7 +216,7 @@ public class ChatServer
                 string filepath;
                 do
                 {
-                    filepath = Path.GetTempPath() + safeFnWoExt + DateTime.Now.ToString("_yyyyMMddHHmmssffff") + ext;
+                    filepath = /*Path.GetTempPath()*/ Path.GetFullPath("C:\\Users\\Admin\\Desktop\\test\\server\\") + safeFnWoExt + DateTime.Now.ToString("_yyyyMMddHHmmssffff") + ext;
                 } while (Path.Exists(filepath));
                 return filepath;
             }
@@ -256,7 +259,6 @@ public class ChatServer
                     attachment.Id.ToString(),
                     attachment.Filename,
                     attachment.SizeInBytes.ToString(),
-                    attachment.IsAvailable.ToString(),
                     attachment.FileClass.ToString());
             }
         }
@@ -267,27 +269,14 @@ public class ChatServer
         if (sender is not ClientConnection clientConn)
             return;
 
-        Console.WriteLine(">>> Server: File IDs read start.");
-        var msgId = Guid.Parse(clientConn.ReadNextMessageSection());
-        var atcId = Guid.Parse(clientConn.ReadNextMessageSection());
-        Console.WriteLine(">>> Server: File IDs read finish.");
-
-        Console.WriteLine(">>> Server: Verifying message ID.");
-        var msg = _messages[msgId];
-        Console.WriteLine(">>> Server: Verifying attachment ID.");
-        var atc = msg.Attachments.FirstOrDefault(e => e.Id == atcId);
-        if (atc == null)
-        {
-            Console.WriteLine($"Invalid message and attachment ID. Message [{msgId}] does not contain attachment [{atcId}].");
-            return;
-        }
-        Console.WriteLine($">>> Server: Message [{msgId}] will receive attachment [{atcId}] shortly.");
+        var atc = GetAttachment(clientConn);
+        Console.WriteLine($">>> Server: Message [{atc.OwningMessage?.Id}] will receive attachment [{atc.Id}] shortly.");
 
         using (var fs = new FileStream(atc.Filepath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous))
         {
-            Console.WriteLine(">>> Server: File data transfer start.");
+            Console.WriteLine(">>> Server: File data read start.");
             clientConn.ReadNextDataSectionAsync(fs).Wait();
-            Console.WriteLine(">>> Server: File data transfer finish.");
+            Console.WriteLine(">>> Server: File data read finish.");
         }
 
         Console.WriteLine(">>> Server: File check start.");
@@ -296,13 +285,49 @@ public class ChatServer
         Console.WriteLine(">>> Server: File check finish.");
     }
 
+    private static async void OnFileRequested(object? sender, EventArgs e)
+    {
+        if (sender is not ClientConnection clientConn)
+            return;
+
+        var atc = GetAttachment(clientConn);
+        Console.WriteLine($">>> Server: Checking attachment [{atc.Id}] of message [{atc.OwningMessage?.Id}].");
+        if (!atc.IsAvailable)
+        {
+            //throw new Exception($"File '{atc.Filepath}' [{atc.Id}] is not currently available.");
+            await clientConn.Send(OpCode.FileRequestResponse, false.ToString());
+            return;
+        }
+
+        Console.WriteLine(">>> Server: Sending availability response.");
+        await clientConn.Send(OpCode.FileRequestResponse, true.ToString());
+        Console.WriteLine(">>> Server: File data write start.");
+        await clientConn.SendFile(atc.Filepath);
+        Console.WriteLine(">>> Server: File data write finish.");
+    }
+
+    private static Attachment GetAttachment(ClientConnection clientConn)
+    {
+        Console.WriteLine(">>> Server: File IDs read start.");
+        var msgId = Guid.Parse(clientConn.ReadNextMessageSection());
+        var atcId = Guid.Parse(clientConn.ReadNextMessageSection());
+        Console.WriteLine(">>> Server: File IDs read finish.");
+
+        Console.WriteLine(">>> Server: Verifying message ID.");
+        var msg = _messages[msgId];
+        Console.WriteLine(">>> Server: Verifying attachment ID.");
+        var atc = msg.Attachments.FirstOrDefault(e => e.Id == atcId)
+            ?? throw new Exception($"Invalid message and attachment ID. Message [{msgId}] does not contain attachment [{atcId}].");
+        return atc;
+    }
+
     private static async void OnClientDisconnected(object? sender, EventArgs e)
     {
         if (sender is not ClientConnection clientConn)
             return;
 
         clientConn.Terminate();
-        foreach (var workerConn in clientConn.User.WorkerConnections)
+        foreach (var workerConn in clientConn.User.WorkerConnections.Values)
         {
             workerConn.Terminate();
         }

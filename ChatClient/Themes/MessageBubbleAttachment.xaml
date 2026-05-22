@@ -39,15 +39,25 @@
                                     <Label Content="{Binding SizeInBytes, Converter={StaticResource ByteUnitConverter}}"
                                            Foreground="#A2A2A2"
                                            HorizontalAlignment="Left"/>
-                                    <Button Width="15" Height="15"
+                                    <Button Width="20" Height="20"
                                             Margin="0,0,5,0"
                                             HorizontalAlignment="Right"
                                             Style="{StaticResource ImageButton}"
-                                            Command="{Binding DataContext.DownloadFileCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                            Command="{Binding DataContext.DownloadFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                             CommandParameter="{Binding}">
-                                        <Image Width="15" Height="15"
-                                               RenderOptions.BitmapScalingMode="Fant"
-                                               Source="/Icons/download.png"/>
+                                        <Image Width="20" Height="20"
+                                               RenderOptions.BitmapScalingMode="Fant">
+                                            <Image.Style>
+                                                <Style TargetType="Image">
+                                                    <Setter Property="Source" Value="/Icons/download.png"/>
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsEnabled" Value="True">
+                                                            <Setter Property="Source" Value="/Icons/download_active.png"/>
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Image.Style>
+                                        </Image>
                                     </Button>
                                 </Grid>
                             </StackPanel>
@@ -62,10 +72,11 @@
             <DataTrigger Binding="{Binding IsImage}" Value="True">
                 <Setter Property="Template">
                     <Setter.Value>
-                        <ControlTemplate>
+                        <ControlTemplate TargetType="ListViewItem">
 
-                            <Image MaxWidth="400" MaxHeight="300"
+                            <Image MaxWidth="500" MaxHeight="300"
                                    RenderOptions.BitmapScalingMode="Fant"
+                                   Cursor="Hand"
                                    Margin="0,5">
                                 <Image.Source>
                                     <Binding Path="ImageData">
@@ -74,6 +85,11 @@
                                         </Binding.TargetNullValue>
                                     </Binding>
                                 </Image.Source>
+                                <Image.InputBindings>
+                                    <MouseBinding Gesture="LeftClick" 
+                                                  Command="{Binding DataContext.DownloadImageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                  CommandParameter="{Binding}"/>
+                                </Image.InputBindings>
                             </Image>
 
                         </ControlTemplate>

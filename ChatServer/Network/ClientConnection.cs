@@ -8,6 +8,7 @@ public class ClientConnection(User user, TcpClient tcpClient)
 {
     public event EventHandler? ClientChatted;
     public event EventHandler? FileTransferred;
+    public event EventHandler? FileRequested;
     public event EventHandler? ClientDisconnected;
 
     public User User { get; set; } = user;
@@ -79,6 +80,7 @@ public class ClientConnection(User user, TcpClient tcpClient)
                         FileTransferred?.Invoke(this, EventArgs.Empty);
                         break;
                     case OpCode.FileRequest:
+                        FileRequested?.Invoke(this, EventArgs.Empty);
                         break;
                     case OpCode.EOS:
                         goto DISCONNECT;
@@ -137,19 +139,13 @@ public class ClientConnection(User user, TcpClient tcpClient)
         await _tcpClient.GetStream().WriteAsync(packet);
     }
 
-    public async Task SendFile(string filepath)
+    public async Task SendFile(string inputFilepath)
     {
         if (!_tcpClient.Connected)
             throw new Exception("Connection to client lost.");
 
-        using var fs = new FileStream(filepath!, FileMode.Open, FileAccess.Read, FileShare.None, 4096, FileOptions.Asynchronous);
+        using var fs = new FileStream(inputFilepath!, FileMode.Open, FileAccess.Read, FileShare.None, 4096, FileOptions.Asynchronous);
         var ns = _tcpClient.GetStream();
-
-        var packet = new PacketBuilder()
-                        .WriteOpCode(OpCode.FileTransfer)
-                        .WriteMessageSection(Path.GetFileName(fs.Name))
-                        .Build();
-        await ns.WriteAsync(packet);
 
         var lenBuffer = BitConverter.GetBytes(fs.Length);
         await ns.WriteAsync(lenBuffer);

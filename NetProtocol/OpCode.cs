@@ -14,4 +14,5 @@ public enum OpCode
     FileTransfer,
     FileTransferGoAhead,
     FileRequest,
+    FileRequestResponse,
 }

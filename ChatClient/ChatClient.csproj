@@ -11,14 +11,12 @@
   <ItemGroup>
     <None Remove="Icons\bin.png" />
     <None Remove="Icons\download.png" />
+    <None Remove="Icons\download_active.png" />
     <None Remove="Icons\file_image.png" />
     <None Remove="Icons\paper_clip.png" />
     <None Remove="Icons\power.png" />
     <None Remove="Icons\power_off.png" />
     <None Remove="Icons\power_on.png" />
-    <None Remove="Icons\send_fill.png" />
-    <None Remove="Icons\send_fill_active.png" />
-    <None Remove="Icons\smiley.png" />
   </ItemGroup>
 
   <ItemGroup>
@@ -26,6 +24,9 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Resource>
     <Resource Include="Icons\download.png">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Icons\download_active.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Resource>
     <Resource Include="Icons\file_generic.png">
@@ -46,13 +47,10 @@
     <Resource Include="Icons\power_on.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Resource>
-    <Resource Include="Icons\send_fill.png">
+    <Resource Include="Icons\send.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Resource>
-    <Resource Include="Icons\send_fill_active.png">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Resource>
-    <Resource Include="Icons\smiley.png">
+    <Resource Include="Icons\send_active.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Resource>
   </ItemGroup>

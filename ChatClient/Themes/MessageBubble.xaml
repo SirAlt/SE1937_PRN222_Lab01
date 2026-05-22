@@ -22,7 +22,7 @@
                                     CornerRadius="15"
                                     Margin="0,8">
 
-                                <emoji:EmojiedTextBlock Text="{Binding Message}"
+                                <emoji:EmojiedTextBlock Text="{Binding Content}"
                                                         Foreground="White"
                                                         Margin="6,0"
                                                         Padding="6"/>
@@ -48,13 +48,13 @@
                             <Label Content="{Binding Sender.Username}"
                                    Foreground="#A2A2A2"
                                    FontSize="11"/>
-                            <emoji:EmojiedTextBlock Text="{Binding Message}"
+                            <emoji:EmojiedTextBlock Text="{Binding Content}"
                                                     Foreground="White"
                                                     Padding="6">
                                 <emoji:EmojiedTextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Message}" Value="">
+                                            <DataTrigger Binding="{Binding Content}" Value="">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -68,9 +68,12 @@
                                       ItemContainerStyle="{StaticResource MessageBubbleAttachment}">
                                 <ListView.Style>
                                     <Style TargetType="ListView">
-                                        <Setter Property="Width" Value="400"/>
+                                        <!--<Setter Property="Width" Value="410"/>-->
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Attachments.Count}" Value="0">
+                                            <DataTrigger Binding="{Binding HasAttachment}" Value="true">
+                                                <Setter Property="Width" Value="400"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding HasImage}" Value="true">
                                                 <Setter Property="Width" Value="auto"/>
                                             </DataTrigger>
                                         </Style.Triggers>
