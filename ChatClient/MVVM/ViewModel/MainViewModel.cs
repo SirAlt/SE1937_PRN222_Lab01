@@ -122,15 +122,22 @@ public class MainViewModel : ObservableObject
                     return;
                 }
 
-                _serverConn = new ServerConnection();
-                _serverConn.UidInfoReceived += OnUidInfoReceived;
-                _serverConn.UserListUpdated += OnUserListUpdated;
-                _serverConn.UserJoined += OnUserJoined;
-                _serverConn.UserChatted += OnUserChat;
-                _serverConn.UserLeft += OnUserDisconnect;
+                try
+                {
+                    _serverConn = new ServerConnection();
+                    _serverConn.UidInfoReceived += OnUidInfoReceived;
+                    _serverConn.UserListUpdated += OnUserListUpdated;
+                    _serverConn.UserJoined += OnUserJoined;
+                    _serverConn.UserChatted += OnUserChat;
+                    _serverConn.UserLeft += OnUserDisconnect;
 
-                await _serverConn.ConnectToServerAsChat(IP!, Port, Username!);
-                _serverConn.BeginListen();
+                    await _serverConn.ConnectToServerAsChat(IP!, Port, Username!);
+                    _serverConn.BeginListen();
+                }
+                catch (Exception ex)
+                {
+                    ViewUtils.Error("Error connecting to server: " + ex.Message, "Error");
+                }
             },
             o => (_serverConn == null || !_serverConn.Connected) && IP != null && Port != default && !string.IsNullOrWhiteSpace(Username)
             );
@@ -138,7 +145,7 @@ public class MainViewModel : ObservableObject
         SendChatCommand = new(
             async o =>
             {
-                Debug.WriteLine(">>> Client: Reading message box.");
+                Logger.Log(Source.Client, Level.DEBUG, $"Send command initiated for message [{NewMessage.Id}]");
                 var msg = NewMessage;
                 NewMessage = new()
                 {
@@ -148,44 +155,61 @@ public class MainViewModel : ObservableObject
 
                 msg.Timestamp = DateTime.Now;
                 Messages.Add(msg);
-                Debug.WriteLine(">>> Client: Added local message to chatlist. Sending message to server.");
+                Logger.Log(Source.Client, Level.DEBUG, $"Added local version of message [{msg.Id}] to chatlist.");
 
                 await _serverConn!.Send(OpCode.Chat, msg.Id.ToString(), msg.Content);
-                Debug.WriteLine($">>> Client: Message [{msg.Id}] sent.");
+                Logger.Log(Source.Client, Level.DEBUG, $"Message [{msg.Id}] transmitted.");
 
                 /* File info */
                 await _serverConn.Send(OpCode.Partial, msg.Attachments.Count.ToString());
-                Debug.WriteLine(">>> Client: Attachment count sent.");
+                Logger.Log(Source.Client, Level.DEBUG, $"Attachment count [{msg.Attachments.Count}] of message [{msg.Id}] transmitted.");
                 foreach (var attachment in msg.Attachments)
                 {
                     await _serverConn.Send(OpCode.Partial, attachment.Id.ToString(), attachment.Filename, attachment.SizeInBytes.ToString());
-                    Debug.WriteLine(">>> Client: Attachment info sent.");
+                    Logger.Log(Source.Client, Level.DEBUG, $"Metadata of attachment '{attachment.Filename}' [{attachment.Id}] of message [{msg.Id}] transmitted.");
                 }
 
                 // If we don't wait here, we face a race condition between the server reading the 'attachment info' (above)
                 // and the IDs (below). If the IDs happen to get read first, server will think the attachment doesn't exist.
-                Debug.WriteLine(">>> Client: Waiting for go-ahead signal.");
+                Logger.Log(Source.Client, Level.DEBUG, $"All attachment metadata of message [{msg.Id}] transmitted. Waiting for go-ahead signal.");
                 await _serverConn.FileTransferGoAheadSignal.WaitAsync();
                 // Do NOT release the semaphore. Only the socket listener can do that.
 
                 /* File data */
-                Debug.WriteLine(">>> Client: Go-ahead signal received.");
+                Logger.Log(Source.Client, Level.DEBUG, $"Go-ahead signal for attachments of message [{msg.Id}] received.");
                 Parallel.ForEach(msg.Attachments, async attachment =>
                 {
                     var workerConn = await SpawnWorkerSocket();
-                    Debug.WriteLine(">>> Client: Worker spawned.");
+                    Logger.Log(Source.Client, Level.DEBUG, $"Worker socket for transmission of attachment '{attachment.Filename}' [{attachment.Id}] of message [{msg.Id}] spawned.");
 
                     attachment.IsTransferring = true;
-                    await workerConn.SendFileAsAttachment(msg.Id, attachment.Id, attachment.Filepath, UpdateUploadProgress);
+                    if (attachment.IsInMemory && attachment.ImageData != null)
+                    {
+                        Logger.Log(Source.Client, Level.DEBUG, $"Attachment '{attachment.Filename}' [{attachment.Id}] of message [{msg.Id}] is available in memory.");
+                        // Would be lovely if we could just grab the Stream used to create the BitmapImage,
+                        // but not disposing of that thing ASAP is prime ground for a memory leak.
+                        using var ms = new MemoryStream();
+                        var encoder = new PngBitmapEncoder();
+                        encoder.Frames.Add(BitmapFrame.Create(attachment.ImageData));
+                        encoder.Save(ms);
+                        ms.Position = 0;
+
+                        await workerConn.SendFileAsAttachment(
+                            msg.Id, attachment.Id, ms,
+                            (s, e) => attachment.ProgressByte = e.Progress);
+                    }
+                    else
+                    {
+                        Logger.Log(Source.Client, Level.DEBUG, $"Attachment '{attachment.Filename}' [{attachment.Id}] of message [{msg.Id}] will be fetched from disk.");
+                        await workerConn.SendFileAsAttachment(
+                            msg.Id, attachment.Id, attachment.Filepath,
+                            (s, e) => attachment.ProgressByte = e.Progress);
+                    }
                     attachment.IsTransferring = false;
+                    Logger.Log(Source.Client, Level.DEBUG, $"Attachment '{attachment.Filename}' [{attachment.Id}] of message [{msg.Id}] transmitted.");
 
                     workerConn.DisconnectFromServer();
-                    Debug.WriteLine(">>> Client: Worker terminated.");
-
-                    void UpdateUploadProgress(object? sender, ProgressEventArgs e)
-                    {
-                        attachment.ProgressByte = e.Progress;
-                    }
+                    Logger.Log(Source.Client, Level.DEBUG, $"Worker socket for transmission of attachment '{attachment.Filename}' [{attachment.Id}] of message [{msg.Id}] terminated.");
                 });
             },
             o => _serverConn != null && _serverConn.Connected && _nativeUser != null
@@ -206,34 +230,29 @@ public class MainViewModel : ObservableObject
                     var encoder = new PngBitmapEncoder();
                     encoder.Frames.Add(BitmapFrame.Create(bitmapSource));
 
-                    var filepath = "";
-                    do
-                    {
-                        filepath = Path.GetTempPath() + Path.GetRandomFileName();
-                        filepath = filepath.Replace(Path.GetExtension(filepath), ".png");
-                    } while (Path.Exists(filepath));
-                    using var fs = new FileStream(
-                        filepath,
-                        FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 4096, FileOptions.Asynchronous);
-                    encoder.Save(fs);
-                    fs.Position = 0;
+                    using var ms = new MemoryStream();
+                    encoder.Save(ms);
+                    ms.Position = 0;
 
                     bitmapImage.BeginInit();
                     bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmapImage.StreamSource = fs;
+                    bitmapImage.StreamSource = ms;
                     bitmapImage.EndInit();
                     bitmapImage.Freeze();
+
+                    var filename = Path.GetRandomFileName();
+                    filename = filename.Replace(Path.GetExtension(filename), ".png");
 
                     var attachment = new AttachmentModel()
                     {
                         Id = Guid.NewGuid(),
-                        Filename = Path.GetFileName(filepath),
-                        SizeInBytes = new FileInfo(filepath).Length,
+                        Filename = filename,
+                        SizeInBytes = ms.Length,
                         FileClass = FileClass.Image,
 
                         OwningMessage = NewMessage,
 
-                        Filepath = filepath,
+                        IsInMemory = true,
 
                         ImageData = bitmapImage,
                     };
@@ -277,9 +296,10 @@ public class MainViewModel : ObservableObject
                         var image = attachment.ImageData = new();
                         image.BeginInit();
                         image.CacheOption = BitmapCacheOption.OnLoad;
-                        using var fs = File.OpenRead(filepath);
+                        using var fs = new FileStream(filepath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous);
                         image.StreamSource = fs;
                         image.EndInit();
+                        image.Freeze();
                     }
 
                     NewMessage.Attachments.Add(attachment);
@@ -306,22 +326,22 @@ public class MainViewModel : ObservableObject
                 workerConn.FileRequestAnswered += ReceiveFile;
                 workerConn.BeginListen();
 
-                Debug.WriteLine($">>> Client: Requested attachment [{attachment.Id}] of message [{attachment.OwningMessage!.Id}].");
+
+                Logger.Log(Source.Client, Level.DEBUG, $"Requesting attachment '{attachment.Filename}' [{attachment.Id}] of message [{attachment.OwningMessage?.Id}].");
                 await workerConn.Send(OpCode.FileRequest, attachment.OwningMessage!.Id.ToString(), attachment.Id.ToString());
-                Debug.WriteLine($">>> Client: Waiting for availability response.");
+                Logger.Log(Source.Client, Level.DEBUG, $"Waiting for availability response on attachment '{attachment.Filename}' [{attachment.Id}] of message [{attachment.OwningMessage?.Id}].");
 
                 void ReceiveFile(object? sender, EventArgs e)
                 {
-                    Debug.WriteLine($">>> Client: Reading availability response.");
                     var avail = bool.Parse(workerConn.ReadNextMessageSection());
                     if (!avail)
                     {
-                        Debug.WriteLine($">>> Client: Not available. Bail.");
+                        Logger.Log(Source.Client, Level.DEBUG, $"Attachment '{attachment.Filename}' [{attachment.Id}] of message [{attachment.OwningMessage?.Id}] is NOT AVAILABLE.");
                         ViewUtils.Warn("This file is not available for download. Try again later.", "File unavailable");
                         return;
                     }
 
-                    Debug.WriteLine($">>> Client: Available. Yay.");
+                    Logger.Log(Source.Client, Level.DEBUG, $"Attachment '{attachment.Filename}' [{attachment.Id}] of message [{attachment.OwningMessage?.Id}] is AVAILABLE.");
                     var fileDialog = new Microsoft.Win32.SaveFileDialog()
                     {
                         FileName = attachment.Filename,
@@ -330,8 +350,11 @@ public class MainViewModel : ObservableObject
                         OverwritePrompt = true,
                     };
                     if (fileDialog.ShowDialog() == false)
-                        throw new IOException();    // Shut down the socket.
-                    Debug.WriteLine($">>> Client: User has chosen save path. Continuing to file transmission.");
+                    {
+                        workerConn.DisconnectFromServer();
+                        return;
+                    }
+                    Logger.Log(Source.Client, Level.DEBUG, $"Path '{fileDialog.FileName}' chosen by user to save attachment '{attachment.Filename}' [{attachment.Id}] of message [{attachment.OwningMessage?.Id}].");
 
                     using var fs = new FileStream(fileDialog.FileName, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous);
                     var ps = new ProgressStream(fs, attachment.SizeInBytes);
@@ -339,14 +362,14 @@ public class MainViewModel : ObservableObject
                     {
                         attachment.ProgressByte = e.Progress;
                     };
-                    Debug.WriteLine($">>> Client: File transmission start.");
+                    Logger.Log(Source.Client, Level.DEBUG, $"Transmission of attachment '{attachment.Filename}' [{attachment.Id}] of message [{attachment.OwningMessage?.Id}] is starting.");
                     attachment.IsTransferring = true;
                     workerConn.ReadNextDataSectionAsync(ps).Wait();
                     attachment.IsTransferring = false;
-                    Debug.WriteLine($">>> Client: File transmission finish.");
+                    Logger.Log(Source.Client, Level.DEBUG, $"Transmission of attachment '{attachment.Filename}' [{attachment.Id}] of message [{attachment.OwningMessage?.Id}] has finished.");
 
                     workerConn.DisconnectFromServer();
-                    Debug.WriteLine($">>> Client: Worker #{Environment.CurrentManagedThreadId} disconnected.");
+                    Logger.Log(Source.Client, Level.DEBUG, $"Worker socket for transmission of attachment '{attachment.Filename}' [{attachment.Id}] of message [{attachment.OwningMessage?.Id}] terminated.");
                 }
             },
             o => _serverConn != null && _serverConn.Connected
@@ -361,18 +384,29 @@ public class MainViewModel : ObservableObject
                 var fileDialog = new Microsoft.Win32.SaveFileDialog()
                 {
                     FileName = attachment.Filename,
+                    Filter = "JPEG Image|*.jpg" + "|PNG Image|*.png" + "|WEBP File|*.webp",
                     RestoreDirectory = true,
                     OverwritePrompt = true,
                 };
                 if (fileDialog.ShowDialog() == false) return;
 
-                var image = attachment.ImageData;
-                var encoder = new PngBitmapEncoder();
-                encoder.Frames.Add(BitmapFrame.Create(image));
-
-                using var fileStream = new FileStream(
-                    fileDialog.FileName,
-                    FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous);
+                var ext = Path.GetExtension(fileDialog.FileName);
+                BitmapEncoder encoder;
+                switch (ext)
+                {
+                    case ".jpg":
+                    case ".jpeg":
+                        encoder = new JpegBitmapEncoder();
+                        break;
+                    case ".png":
+                        encoder = new PngBitmapEncoder();
+                        break;
+                    default:
+                        ViewUtils.Warn("The selected image format is not supported.", "Unsupported format");
+                        return;
+                }
+                using var fileStream = new FileStream(fileDialog.FileName, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous);
+                encoder.Frames.Add(BitmapFrame.Create(attachment.ImageData));
                 encoder.Save(fileStream);
             },
             o => _serverConn != null && _serverConn.Connected
@@ -382,7 +416,7 @@ public class MainViewModel : ObservableObject
         DisconnectCommand = new(
             o =>
             {
-                _serverConn!.DisconnectFromServer(true);
+                _serverConn!.DisconnectFromServer();
 
                 var goodbyeMsg = new MessageModel()
                 {
@@ -508,6 +542,8 @@ public class MainViewModel : ObservableObject
                 Sender = senderUser,
                 Timestamp = timestamp,
                 Content = content,
+
+                IsOnServer = true,
             };
         }
 
@@ -586,7 +622,7 @@ public class MainViewModel : ObservableObject
 
                     Debug.WriteLine($">>> Client: Available. Yay.");
 
-                    using var ms = new MemoryStream();
+                    var ms = new MemoryStream();
                     var ps = new ProgressStream(ms, attachment.SizeInBytes);
                     ps.ProgressUpdated += (s, e) => { };
                     Debug.WriteLine($">>> Client: File transmission start.");
@@ -598,12 +634,26 @@ public class MainViewModel : ObservableObject
 
                     Application.Current.Dispatcher.Invoke(() =>
                     {
-                        var image = attachment.ImageData = new();
-                        image.BeginInit();
-                        image.BaseUri = null;
-                        image.CacheOption = BitmapCacheOption.OnLoad;
-                        image.StreamSource = ms;
-                        image.EndInit();
+                        try
+                        {
+                            ms.Position = 0;
+
+                            var image = attachment.ImageData = new();
+                            image.BeginInit();
+                            image.BaseUri = null;
+                            image.CacheOption = BitmapCacheOption.OnLoad;
+                            image.StreamSource = ms;
+                            image.EndInit();
+                            image.Freeze();
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine(">>> [CLIENT][ERROR]: " + ex.Message);
+                        }
+                        finally
+                        {
+                            ms.Close();
+                        }
                     });
                 }
             }

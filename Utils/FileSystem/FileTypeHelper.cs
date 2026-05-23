@@ -2,7 +2,7 @@
 
 public class FileTypeHelper
 {
-    private static readonly Dictionary<FileClass, List<string>> FileClassFormats = new()
+    private static readonly Dictionary<FileClass, List<string>> SupportedFormatsPerFileClass = new()
     {
         [FileClass.Text] = ["TXT"],
         [FileClass.Doc] = ["MSWord", "RTF"],
@@ -13,7 +13,7 @@ public class FileTypeHelper
         [FileClass.Archive] = ["ZIP", "7z"],
     };
 
-    private static readonly Dictionary<string, FormatSignature> FormatSignatures = new()
+    private static readonly Dictionary<string, FormatSignature> FileFormatSignatures = new()
     {
         ["JPEG"] = new()
         {
@@ -40,7 +40,7 @@ public class FileTypeHelper
             MagicBytes =
             [
                 ("WEBP"u8.ToArray(), 0),
-                //("RIFF"u8.ToArray(), 0),
+                ("RIFF"u8.ToArray(), 0),
             ]
         }
     };
@@ -51,28 +51,28 @@ public class FileTypeHelper
         if (detectedFormat == null)
             return FileClass.Generic;
 
-        foreach (var fileClass in FileClassFormats)
+        foreach (var supportFormats in SupportedFormatsPerFileClass)
         {
-            if (fileClass.Value.Contains(detectedFormat.Name))
+            if (supportFormats.Value.Contains(detectedFormat.Name))
             {
                 if (!verifyFileSignature)
-                    return fileClass.Key;
+                    return supportFormats.Key;
 
                 // TODO: Make this part of the "peek" in GetFileFormat().
                 // File formats don't suffer from name conflict, so disambiguation is quite unnecessary.
                 using var filestream = File.OpenRead(filepath);
                 if (HasMatchingSignature(filestream, detectedFormat))
-                    return fileClass.Key;
+                    return supportFormats.Key;
             }
         }
         return FileClass.Generic;
     }
 
     // TODO: Peek files, in case of extension conflict.
-    private static FormatSignature? GetFileFormat(string filename)
+    public static FormatSignature? GetFileFormat(string filename)
     {
         var ext = Path.GetExtension(filename);
-        foreach (var formatSig in FormatSignatures.Values)
+        foreach (var formatSig in FileFormatSignatures.Values)
         {
             if (formatSig.Extensions.Contains(ext))
             {

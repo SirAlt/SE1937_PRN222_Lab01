@@ -144,9 +144,9 @@
                         <ControlTemplate TargetType="ListViewItem">
 
                             <Image MaxWidth="500" MaxHeight="300"
-                                   RenderOptions.BitmapScalingMode="Fant"
-                                   Cursor="Hand"
-                                   Margin="0,5">
+                                   Margin="0,5"
+                                   RenderOptions.BitmapScalingMode="Fant">
+
                                 <Image.Source>
                                     <Binding Path="ImageData">
                                         <Binding.TargetNullValue>
@@ -154,11 +154,24 @@
                                         </Binding.TargetNullValue>
                                     </Binding>
                                 </Image.Source>
+
+                                <Image.Style>
+                                    <Style TargetType="Image">
+                                        <Setter Property="Cursor" Value="Hand"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ImageData}" Value="{x:Null}">
+                                                <Setter Property="Cursor" Value="Wait"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Image.Style>
+
                                 <Image.InputBindings>
                                     <MouseBinding Gesture="LeftClick" 
                                                   Command="{Binding DataContext.SaveImageCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                   CommandParameter="{Binding}"/>
                                 </Image.InputBindings>
+
                             </Image>
 
                         </ControlTemplate>

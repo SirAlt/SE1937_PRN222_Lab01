@@ -15,6 +15,7 @@ public class AttachmentModel : ObservableObject
 
     /* Local */
     public string Filepath { get; set; } = string.Empty;
+    public bool IsInMemory { get; set; }
 
     /* UI */
     public bool IsImage => FileClass == FileClass.Image;

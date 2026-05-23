@@ -47,7 +47,7 @@ public class MessageModel : ObservableObject
     /* UI */
     public bool IsSystem => Sender.Uid.Equals(IdStore.Instance.SystemUid);
     public bool IsNativeOrigin => Sender.Uid.Equals(IdStore.Instance.NativeUid);
-    public bool IsTimedOut => IsNativeOrigin && !IsOnServer && DateTime.Now - Timestamp > TimeSpan.FromSeconds(15);
+    public bool IsTimedOut => !IsOnServer && DateTime.Now - Timestamp > TimeSpan.FromSeconds(15);
     public bool HasAttachment => Attachments.Count > 0;
     public bool HasImage => Attachments.Any(e => e.IsImage && e.ImageData != null);
 

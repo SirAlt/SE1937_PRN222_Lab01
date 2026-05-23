@@ -165,7 +165,7 @@ public class ChatServer
             if (sender is not ClientConnection clientConn)
                 return;
 
-            Console.WriteLine(">>> Server: Message read start.");
+            Console.WriteLine($">>> Server (Thread #{Environment.CurrentManagedThreadId}): Message read start.");
             var msgId = clientConn.ReadNextMessageSection();
             var msgContent = clientConn.ReadNextMessageSection();
             var msg = new Message()

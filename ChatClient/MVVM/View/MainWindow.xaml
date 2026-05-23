@@ -3,7 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:b="http://schemas.microsoft.com/xaml/behaviors"
         xmlns:local="clr-namespace:ChatClient"
+        xmlns:behaviors="clr-namespace:ChatClient.MVVM.Behaviors"
         xmlns:core="clr-namespace:ChatClient.MVVM.Core"
         xmlns:viewmodel="clr-namespace:ChatClient.MVVM.ViewModel"
         xmlns:emoji="clr-namespace:iNKORE.UI.WPF.Emojis;assembly=iNKORE.UI.WPF.Emojis"
@@ -312,8 +314,14 @@
                       Background="Transparent"
                       BorderThickness="0"
                       Margin="8,0,0,0"
+                      VirtualizingPanel.ScrollUnit="Pixel"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
                       ItemsSource="{Binding Messages}"
-                      ItemContainerStyle="{StaticResource MessageBubble}"/>
+                      ItemContainerStyle="{StaticResource MessageBubble}">
+                <b:Interaction.Behaviors>
+                    <behaviors:ScrollToNewItemBehavior />
+                </b:Interaction.Behaviors>
+            </ListView>
 
             <Border Grid.Row="2"
                     CornerRadius="8"
@@ -330,6 +338,7 @@
                     <ListView Background="Transparent"
                               BorderThickness="0"
                               Margin="0"
+                              ScrollViewer.CanContentScroll="False"
                               ItemsSource="{Binding NewMessage.Attachments}"
                               ItemContainerStyle="{StaticResource MessageBoxAttachment}">
 
@@ -340,6 +349,10 @@
                                             Margin="0"/>
                             </ItemsPanelTemplate>
                         </ListView.ItemsPanel>
+
+                        <b:Interaction.Behaviors>
+                            <behaviors:ScrollToNewItemBehavior />
+                        </b:Interaction.Behaviors>
 
                     </ListView>
 

@@ -32,7 +32,7 @@ public class PacketReader(NetworkStream stream)
         await stream.ReadExactlyAsync(lenBuffer, 0, lenBuffer.Length);
         var length = BitConverter.ToInt64(lenBuffer);
 
-        var bufferSize = 4096;
+        var bufferSize = 65536;
         var dataBuffer = new byte[bufferSize];
         var remaining = length;
         while (remaining > 0)

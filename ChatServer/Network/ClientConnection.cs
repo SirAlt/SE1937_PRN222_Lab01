@@ -16,26 +16,33 @@ public class ClientConnection(User user, TcpClient tcpClient)
 
     private readonly TcpClient _tcpClient = tcpClient;
     private readonly PacketReader _packetReader = new(tcpClient.GetStream());
+    private CancellationTokenSource? _listenerCancelTknSrc;
 
     public void BeginListen()
     {
+        if (_listenerCancelTknSrc != null && !_listenerCancelTknSrc.IsCancellationRequested)
+            return; // Already listening
+        _listenerCancelTknSrc = new CancellationTokenSource();
         if (IsMain)
-            Task.Run(ProcessMainConnection);
+            Task.Run(() => ProcessChatConnection(_listenerCancelTknSrc.Token));
         else
-            Task.Run(ProcessWorkerConnection);
+            Task.Run(() => ProcessWorkerConnection(_listenerCancelTknSrc.Token));
     }
 
-    private void ProcessMainConnection()
+    private void ProcessChatConnection(CancellationToken ct)
     {
+        if (_packetReader == null)
+            return;
+
         while (true)
         {
             try
             {
-                if (_packetReader == null)
-                    break;
+                if (ct.IsCancellationRequested)
+                    return;
 
                 var opcode = _packetReader.ReadOpCode();
-                Console.WriteLine($">>> Server: Chat listener received opcode [{opcode}]");
+                Console.WriteLine($">>> [SERVER][DEBUG]: Chat listener received opcode [{opcode}]");
                 switch (opcode)
                 {
                     case OpCode.Chat:
@@ -48,32 +55,30 @@ public class ClientConnection(User user, TcpClient tcpClient)
                         break;
                 }
             }
-            catch (IOException ex)
-            {
-                Console.WriteLine($"I/O error handling message from client {User.Username} [{User.Uid}]: " + ex.Message);
-                goto DISCONNECT;
-            }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error handling message from client {User.Username} [{User.Uid}]: " + ex.Message);
-                goto DISCONNECT;
+                Console.WriteLine($">>> [SERVER][ERROR]: Error handling main socket from client '{User.Username}' [{User.Uid}]: " + ex.Message);
+                _tcpClient.Close();
             }
         }
     DISCONNECT:
         ClientDisconnected?.Invoke(this, EventArgs.Empty);
     }
 
-    private void ProcessWorkerConnection()
+    private void ProcessWorkerConnection(CancellationToken ct)
     {
-        while (true)
+        if (_packetReader == null)
+            return;
+
+        try
         {
-            try
+            while (true)
             {
-                if (_packetReader == null)
-                    break;
+                if (ct.IsCancellationRequested)
+                    return;
 
                 var opcode = _packetReader.ReadOpCode();
-                Console.WriteLine($">>> Server: Worker listener received opcode [{opcode}]");
+                Console.WriteLine($">>> [SERVER][DEBUG]: Worker listener received opcode [{opcode}]");
                 switch (opcode)
                 {
                     case OpCode.FileTransfer:
@@ -89,19 +94,14 @@ public class ClientConnection(User user, TcpClient tcpClient)
                         break;
                 }
             }
-            catch (IOException ex)
-            {
-                Console.WriteLine($"I/O error handling worker socket #{Environment.CurrentManagedThreadId} of client '{User.Username}' [{User.Uid}]: " + ex.Message);
-                goto DISCONNECT;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error handling worker socket #{Environment.CurrentManagedThreadId} of client '{User.Username}' [{User.Uid}]: " + ex.Message);
-                goto DISCONNECT;
-            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($">>> [SERVER][ERROR]: Error handling worker socket of client '{User.Username}' [{User.Uid}]: " + ex.Message);
+            _tcpClient.Close();
         }
     DISCONNECT:
-        Console.WriteLine($"Worker socket #{Environment.CurrentManagedThreadId} of client '{User.Username}' [{User.Uid}] has finished.");
+        Console.WriteLine($"Worker socket of client '{User.Username}' [{User.Uid}] has finished.");
     }
 
     public string ReadNextMessageSection()
@@ -144,7 +144,7 @@ public class ClientConnection(User user, TcpClient tcpClient)
         if (!_tcpClient.Connected)
             throw new Exception("Connection to client lost.");
 
-        using var fs = new FileStream(inputFilepath!, FileMode.Open, FileAccess.Read, FileShare.None, 4096, FileOptions.Asynchronous);
+        using var fs = new FileStream(inputFilepath!, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous);
         var ns = _tcpClient.GetStream();
 
         var lenBuffer = BitConverter.GetBytes(fs.Length);
@@ -155,7 +155,14 @@ public class ClientConnection(User user, TcpClient tcpClient)
 
     public void Terminate()
     {
-        //_tcpClient.Client.Shutdown(SocketShutdown.Both);
-        _tcpClient.Close();
+        try
+        {
+            _listenerCancelTknSrc?.Cancel();
+        }
+        finally
+        {
+            _listenerCancelTknSrc?.Dispose();
+            _tcpClient.Close();
+        }
     }
 }

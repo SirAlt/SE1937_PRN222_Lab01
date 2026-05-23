@@ -27,7 +27,7 @@ public class ServerConnection
 
     private readonly TcpClient _tcpClient;
     private PacketReader? _packetReader;
-    private Task? _listenerTask;
+    private CancellationTokenSource? _listenerCancelTknSrc;
 
     public ServerConnection()
     {
@@ -39,23 +39,16 @@ public class ServerConnection
         if (_tcpClient.Connected)
             return;
 
-        try
-        {
-            await _tcpClient.ConnectAsync(ip, port);
-            _packetReader = new PacketReader(_tcpClient.GetStream());
+        await _tcpClient.ConnectAsync(ip, port);
+        _packetReader = new PacketReader(_tcpClient.GetStream());
 
-            var packet = new PacketBuilder()
-                .WriteOpCode(OpCode.RegisterNew)
-                .WriteMessageSection(username)
-                .Build();
-            _tcpClient.GetStream().Write(packet);
+        var packet = new PacketBuilder()
+            .WriteOpCode(OpCode.RegisterNew)
+            .WriteMessageSection(username)
+            .Build();
+        _tcpClient.GetStream().Write(packet);
 
-            IsMain = true;
-        }
-        catch (Exception ex)
-        {
-            ViewUtils.Error("Error connecting to server: " + ex.Message, "Error");
-        }
+        IsMain = true;
     }
 
     public async Task ConnectToServerAsWorker(IPAddress ip, int port, Guid uid)
@@ -77,20 +70,26 @@ public class ServerConnection
 
     public void BeginListen()
     {
+        if (_listenerCancelTknSrc != null && !_listenerCancelTknSrc.IsCancellationRequested)
+            return; // Already listening
+        _listenerCancelTknSrc = new CancellationTokenSource();
         if (IsMain)
-            _listenerTask = Task.Run(ProcessChatConn);
+            Task.Run(() => ProcessChatConnection(_listenerCancelTknSrc.Token));
         else
-            _listenerTask = Task.Run(ProcessWorkerConn);
+            Task.Run(() => ProcessWorkerConnection(_listenerCancelTknSrc.Token));
     }
 
-    private void ProcessChatConn()
+    private void ProcessChatConnection(CancellationToken ct)
     {
-        while (true)
+        if (_packetReader == null)
+            return;
+
+        try
         {
-            try
+            while (true)
             {
-                if (_packetReader == null)
-                    break;
+                if (ct.IsCancellationRequested)
+                    return;
 
                 var opcode = _packetReader.ReadOpCode();
                 Debug.WriteLine($">>> Client: Chat listener received opcode [{opcode}]");
@@ -121,23 +120,26 @@ public class ServerConnection
                         break;
                 }
             }
-            catch (Exception)
-            {
-                //_tcpClient.Client.Shutdown(SocketShutdown.Both);
-                _tcpClient.Close();
-            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($">>> [CLIENT][ERROR]: Chat listener failed with error -- " + ex.Message);
+            _tcpClient.Close();
         }
     DISCONNECT:;    // Die gracefully (｡•́⩍•̀｡)
     }
 
-    private void ProcessWorkerConn()
+    private void ProcessWorkerConnection(CancellationToken ct)
     {
-        while (true)
+        if (_packetReader == null)
+            return;
+
+        try
         {
-            try
+            while (true)
             {
-                if (_packetReader == null)
-                    break;
+                if (ct.IsCancellationRequested)
+                    return;
 
                 var opcode = _packetReader.ReadOpCode();
                 Debug.WriteLine($">>> Client: Worker listener received opcode [{opcode}]");
@@ -153,11 +155,11 @@ public class ServerConnection
                         break;
                 }
             }
-            catch (Exception)
-            {
-                //_tcpClient.Client.Shutdown(SocketShutdown.Both);
-                _tcpClient.Close();
-            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($">>> [CLIENT][ERROR]: Worker listener failed with error -- " + ex.Message);
+            _tcpClient.Close();
         }
     DISCONNECT:;    // Die gracefully (｡•́⩍•̀｡)
     }
@@ -202,12 +204,21 @@ public class ServerConnection
         string filepath,
         EventHandler<ProgressEventArgs>? progressUpdateHandler = null)
     {
+        using var filestream = new FileStream(filepath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous);
+        await SendFileAsAttachment(messageId, attachmentId, filestream, progressUpdateHandler);
+    }
+
+    public async Task SendFileAsAttachment(
+        Guid messageId, Guid attachmentId,
+        Stream dataStream,
+        EventHandler<ProgressEventArgs>? progressUpdateHandler = null)
+    {
         if (!_tcpClient.Connected || _packetReader == null)
             throw new Exception("Not connected to server.");
 
         var ns = _tcpClient.GetStream();
 
-        /* ID */
+        /* Metadata */
         var packet = new PacketBuilder()
             .WriteOpCode(OpCode.FileTransfer)
             .WriteMessageSection(messageId.ToString())
@@ -216,25 +227,30 @@ public class ServerConnection
         await ns.WriteAsync(packet);
         Debug.WriteLine($">>> Client: Message [{messageId}] & attachment [{attachmentId}] IDs sent.");
 
-        using var fs = new FileStream(filepath!, FileMode.Open, FileAccess.Read, FileShare.None, 4096, FileOptions.Asynchronous);
-
         /* Binary data */
         Debug.WriteLine(">>> Client: Attachment data transmission start.");
-        var lenBuffer = BitConverter.GetBytes(fs.Length);
+        var lenBuffer = BitConverter.GetBytes(dataStream.Length);
         await ns.WriteAsync(lenBuffer);
 
-        using var ps = new ProgressStream(fs);
+        using var ps = new ProgressStream(dataStream);
         ps.ProgressUpdated += progressUpdateHandler;
         await ps.CopyToAsync(ns);
         Debug.WriteLine(">>> Client: Attachment data transmission finish.");
     }
 
-    public void DisconnectFromServer(bool waitForListener = false)
+    public void DisconnectFromServer()
     {
-        _tcpClient.Client.Shutdown(SocketShutdown.Both);
-        // We've closed the socket, wait for the listener thread to die gracefully,
-        // else we get WSAECONNABORTED (socket closed by WinSock) when it tries to read the NetworkStream.
-        if (waitForListener) _listenerTask?.Wait();
-        _tcpClient.Close();
+        try
+        {
+            _tcpClient.Client.Shutdown(SocketShutdown.Both);
+            // We've disabled the socket, kill the listener before disposing, else we get a WSAECONNABORTED error (socket closed by WinSock)
+            // or a SocketDisposed exception the next time it tries to read from the disabled/disposed socket.
+            _listenerCancelTknSrc?.Cancel();
+        }
+        finally
+        {
+            _listenerCancelTknSrc?.Dispose();
+            _tcpClient.Close();
+        }
     }
 }
