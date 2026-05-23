@@ -121,7 +121,7 @@ public class ServerConnection
                         break;
                 }
             }
-            catch (IOException)
+            catch (Exception)
             {
                 _tcpClient.Client.Shutdown(SocketShutdown.Both);
                 _tcpClient.Close();
@@ -153,7 +153,7 @@ public class ServerConnection
                         break;
                 }
             }
-            catch (IOException)
+            catch (Exception)
             {
                 _tcpClient.Client.Shutdown(SocketShutdown.Both);
                 _tcpClient.Close();
