@@ -6,7 +6,6 @@
 
         <Style.Resources>
             <core:ByteUnitConverter x:Key="ByteUnitConverter"/>
-            <core:ByteUnitUnitlessConverter x:Key="ByteUnitUnitlessConverter"/>
         </Style.Resources>
 
         <Setter Property="Background" Value="Transparent"/>
@@ -110,7 +109,7 @@
                                                                     <Label Grid.Column="1"
                                                                            HorizontalAlignment="Right"
                                                                            HorizontalContentAlignment="Right"
-                                                                           Content="{Binding ProgressByte, Converter={StaticResource ByteUnitUnitlessConverter}}"
+                                                                           Content="{Binding ProgressByte, Converter={StaticResource ByteUnitConverter}}"
                                                                            Foreground="#A2A2A2"/>
                                                                     <Label Grid.Column="2"
                                                                            Content="/"
