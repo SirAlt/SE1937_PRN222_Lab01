@@ -592,45 +592,43 @@ public class MainViewModel : ObservableObject
                 workerConn.FileRequestAnswered += ReceiveImage;
                 workerConn.BeginListen();
 
-                Debug.WriteLine($">>> Client: Auto-requested image [{attachment.Id}] of message [{attachment.OwningMessage!.Id}].");
                 await workerConn.Send(OpCode.FileRequest, attachment.OwningMessage!.Id.ToString(), attachment.Id.ToString());
-                Debug.WriteLine($">>> Client: Waiting for image availability response.");
+                Logger.Log(Source.Client, Level.DEBUG, $">>> Client: Auto-requested image '{attachment.Filename}' [{attachment.Id}] of message [{attachment.OwningMessage!.Id}].");
 
                 void ReceiveImage(object? sender, EventArgs e)
                 {
-                    Debug.WriteLine($">>> Client: Reading image availability response.");
+                    Logger.Log(Source.Client, Level.DEBUG, $">>> Client: Received availability response for image '{attachment.Filename}' [{attachment.Id}].");
                     var avail = bool.Parse(workerConn.ReadNextMessageSection());
                     if (!avail)
                     {
-                        Debug.WriteLine($">>> Client: Not available. Retries remaining: {retryCount}.");
+                        Logger.Log(Source.Client, Level.DEBUG, $">>> Client: Image '{attachment.Filename}' [{attachment.Id}] not available. Retries remaining: {retryCount}.");
                         if (retryCount-- > 0)
                         {
-                            Debug.WriteLine($">>> Client: Re-attempting download of image [{attachment.Id}].");
+                            Logger.Log(Source.Client, Level.DEBUG, $">>> Client: Will try to download image '{attachment.Filename}' [{attachment.Id}] again. Delay: {delay}ms");
                             Task.Delay(delay).Wait();
 
-                            Debug.WriteLine($">>> Client: Auto-requested image [{attachment.Id}] of message [{attachment.OwningMessage!.Id}].");
                             _ = workerConn.Send(OpCode.FileRequest, attachment.OwningMessage!.Id.ToString(), attachment.Id.ToString());
-                            Debug.WriteLine($">>> Client: Waiting for image availability response.");
+                            Logger.Log(Source.Client, Level.DEBUG, $">>> Client: Auto-requested image [{attachment.Id}] of message [{attachment.OwningMessage!.Id}].");
                         }
                         else
                         {
-                            Debug.WriteLine($">>> Client: Out of credits. Game over. Goodbye, image [{attachment.Id}]!");
+                            Logger.Log(Source.Client, Level.DEBUG, $">>> Client: Out of lives. Game over. Goodbye, '{attachment.Filename}' [{attachment.Id}]!");
                             attachment.ImageData = null;
                         }
                         return;
                     }
 
-                    Debug.WriteLine($">>> Client: Available. Yay.");
+                    Logger.Log(Source.Client, Level.DEBUG, $">>> Client: '{attachment.Filename}' [{attachment.Id}] is available. Yay.");
 
                     var ms = new MemoryStream();
                     var ps = new ProgressStream(ms, attachment.SizeInBytes);
                     ps.ProgressUpdated += (s, e) => { };
-                    Debug.WriteLine($">>> Client: File transmission start.");
+                    Logger.Log(Source.Client, Level.DEBUG, $">>> Client: File transmission of '{attachment.Filename}' [{attachment.Id}] start.");
                     workerConn.ReadNextDataSectionAsync(ps).Wait();
-                    Debug.WriteLine($">>> Client: File transmission finish.");
+                    Logger.Log(Source.Client, Level.DEBUG, $">>> Client: File transmission of '{attachment.Filename}' [{attachment.Id}] finish.");
 
                     workerConn.DisconnectFromServer();
-                    Debug.WriteLine($">>> Client: Worker #{Environment.CurrentManagedThreadId} disconnected.");
+                    Logger.Log(Source.Client, Level.DEBUG, $">>> Client: Worker socket disconnected.");
 
                     Application.Current.Dispatcher.Invoke(() =>
                     {
@@ -648,7 +646,7 @@ public class MainViewModel : ObservableObject
                         }
                         catch (Exception ex)
                         {
-                            Debug.WriteLine(">>> [CLIENT][ERROR]: " + ex.Message);
+                            Logger.Log(Source.Client, Level.ERROR, $"Error auto-downloading image '{attachment.Filename}' [{attachment.Id}] -- " + ex.Message);
                         }
                         finally
                         {

@@ -3,6 +3,7 @@ using ChatServer.Network;
 using NetProtocol;
 using System.Net;
 using System.Net.Sockets;
+using Utils;
 using Utils.FileSystem;
 
 namespace ChatServer;
@@ -51,12 +52,13 @@ public class ChatServer
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Error accepting client: " + ex.Message);
+                Logger.Log(Source.Server, Level.ERROR, "Error accepting client -- " + ex.Message);
             }
         }
 
         static async Task DisplayHostAddress(TcpListener server)
         {
+            Console.WriteLine();
             Console.WriteLine("============ IP INFO ============");
 
             var publicIpStr = await new HttpClient().GetStringAsync("http://ipinfo.io/ip");
@@ -76,6 +78,7 @@ public class ChatServer
             Console.WriteLine($"Port: {((IPEndPoint)server.LocalEndpoint).Port}");
 
             Console.WriteLine("============== *** ==============");
+            Console.WriteLine();
         }
 
         static async Task<ClientConnection> RegisterConn(TcpClient tcpClient)
@@ -160,12 +163,12 @@ public class ChatServer
 
     private static async void OnClientChatted(object? sender, EventArgs e)
     {
+        if (sender is not ClientConnection clientConn)
+            return;
+
         try
         {
-            if (sender is not ClientConnection clientConn)
-                return;
-
-            Console.WriteLine($">>> Server (Thread #{Environment.CurrentManagedThreadId}): Message read start.");
+            Logger.Log(Source.Server, Level.DEBUG, $"Received message from client '{clientConn.User.Username}' [{clientConn.User.Uid}]. Reading.");
             var msgId = clientConn.ReadNextMessageSection();
             var msgContent = clientConn.ReadNextMessageSection();
             var msg = new Message()
@@ -175,7 +178,7 @@ public class ChatServer
                 Timestamp = DateTime.Now,
                 Content = msgContent,
             };
-            Console.WriteLine(">>> Server: Message read finish.");
+            Logger.Log(Source.Server, Level.DEBUG, $"Finished reading message [{msgId}].");
 
             _semaphore.Wait();
             try
@@ -185,7 +188,7 @@ public class ChatServer
             finally { _semaphore.Release(); }
 
             var attachmentCount = int.Parse(clientConn.ReadNextMessageSection());
-            Console.WriteLine(">>> Server: Attachment count received.");
+            Logger.Log(Source.Server, Level.DEBUG, $"Message [{msgId}] has <{attachmentCount}> attachment(s).");
             for (int i = 0; i < attachmentCount; i++)
             {
                 var atcId = clientConn.ReadNextMessageSection();
@@ -209,7 +212,7 @@ public class ChatServer
                     Filepath = filePath,
                 };
                 msg.Attachments.Add(attachment);
-                Console.WriteLine(">>> Server: Attachment info received.");
+                Logger.Log(Source.Server, Level.DEBUG, $"Received info for attachment #{i} of message [{msgId}]: Filename -- {filename} ID -- [{atcId}] -- ");
 
                 string GetUniqueFilePath()
                 {
@@ -227,13 +230,13 @@ public class ChatServer
 
             Console.WriteLine($"[{DateTime.Now}]\tReceived chat message from '{clientConn.User.Username}' w/ {attachmentCount} attachment(s): {msgContent}");
 
-            Console.WriteLine(">>> Server: Message relay start.");
+            Logger.Log(Source.Server, Level.DEBUG, $"Broadcasting message [{msgId}] to all users.");
             BroadcastChatMessage(clientConn, msg).Wait();
-            Console.WriteLine(">>> Server: Message relay finish.");
+            Logger.Log(Source.Server, Level.DEBUG, $"Finished broadcasting message [{msgId}] to all users.");
         }
         catch (Exception ex)
         {
-            Console.WriteLine("Error receiving chat message from client: " + ex.Message);
+            Logger.Log(Source.Server, Level.DEBUG, $"Error receiving chat message from client '{clientConn.User.Username}' [{clientConn.User.Uid}] -- " + ex.Message);
         }
     }
 
@@ -262,11 +265,7 @@ public class ChatServer
             foreach (var attachment in msg.Attachments)
             {
                 await target.Send
-                    (OpCode.Partial,
-                    attachment.Id.ToString(),
-                    attachment.Filename,
-                    attachment.SizeInBytes.ToString(),
-                    attachment.FileClass.ToString());
+                    (OpCode.Partial, attachment.Id.ToString(), attachment.Filename, attachment.SizeInBytes.ToString(), attachment.FileClass.ToString());
             }
         }
     }
@@ -279,23 +278,23 @@ public class ChatServer
         try
         {
             var atc = GetAttachment(clientConn);
-            Console.WriteLine($">>> Server: Message [{atc.OwningMessage?.Id}] will receive attachment '{atc.Filename}' [{atc.Id}] shortly.");
+            Logger.Log(Source.Server, Level.DEBUG, $"Message [{atc.OwningMessage?.Id}] will receive attachment '{atc.Filename}' [{atc.Id}].");
 
             using (var fs = new FileStream(atc.Filepath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous))
             {
-                Console.WriteLine(">>> Server: File data read start.");
+                Logger.Log(Source.Server, Level.DEBUG, $"Data reception of attachment '{atc.Filename}' [{atc.Id}] start.");
                 clientConn.ReadNextDataSectionAsync(fs).Wait();
-                Console.WriteLine(">>> Server: File data read finish.");
+                Logger.Log(Source.Server, Level.DEBUG, $"Data reception of attachment '{atc.Filename}' [{atc.Id}] finish.");
             }
 
-            Console.WriteLine(">>> Server: File check start.");
+            Logger.Log(Source.Server, Level.DEBUG, $"Processing of attachment '{atc.Filename}' [{atc.Id}] start.");
             atc.FileClass = FileTypeHelper.GetFileClass(atc.Filepath, verifyFileSignature: true);
             atc.IsAvailable = true;
-            Console.WriteLine(">>> Server: File check finish.");
+            Logger.Log(Source.Server, Level.DEBUG, $"Processing of attachment '{atc.Filename}' [{atc.Id}] finish.");
         }
         catch (Exception ex)
         {
-            Console.WriteLine("Error receiving file from client: " + ex.Message);
+            Logger.Log(Source.Server, Level.ERROR, $"Error receiving file attachment from client '{clientConn.User.Username}' [{clientConn.User.Uid}] -- " + ex.Message);
         }
     }
 
@@ -307,37 +306,32 @@ public class ChatServer
         try
         {
             var atc = GetAttachment(clientConn);
-            Console.WriteLine($">>> Server: Checking attachment [{atc.Id}] of message [{atc.OwningMessage?.Id}].");
+            Logger.Log(Source.Server, Level.DEBUG, $"Received request for attachment [{atc.Id}] of message [{atc.OwningMessage?.Id}] from client '{clientConn.User.Username}' [{clientConn.User.Uid}].");
             if (!atc.IsAvailable)
             {
-                //throw new Exception($"File '{atc.Filepath}' [{atc.Id}] is not currently available.");
-                Console.WriteLine($">>> Server: Request denied -- attachment [{atc.Id}] of message [{atc.OwningMessage?.Id}] is not available.");
+                Logger.Log(Source.Server, Level.DEBUG, $"Request denied - attachment [{atc.Id}] of message [{atc.OwningMessage?.Id}] is not available.");
                 await clientConn.Send(OpCode.FileRequestResponse, false.ToString());
                 return;
             }
 
-            Console.WriteLine($">>> Server: Request accepted -- attachment [{atc.Id}] of message [{atc.OwningMessage?.Id}] will be transferred.");
+            Logger.Log(Source.Server, Level.DEBUG, $"Request accepted - attachment [{atc.Id}] of message [{atc.OwningMessage?.Id}] will be transferred.");
             await clientConn.Send(OpCode.FileRequestResponse, true.ToString());
-            Console.WriteLine(">>> Server: File data write start.");
+            Logger.Log(Source.Server, Level.DEBUG, $"Data transmission of attachment '{atc.Filename}' [{atc.Id}] start.");
             await clientConn.SendFile(atc.Filepath);
-            Console.WriteLine(">>> Server: File data write finish.");
+            Logger.Log(Source.Server, Level.DEBUG, $"Data transmission of attachment '{atc.Filename}' [{atc.Id}] finish.");
         }
         catch (Exception ex)
         {
-            Console.WriteLine("Error responding to file request from client: " + ex.Message);
+            Logger.Log(Source.Server, Level.ERROR, $"Error responding to file request from client '{clientConn.User.Username}' [{clientConn.User.Uid}] -- " + ex.Message);
         }
     }
 
     private static Attachment GetAttachment(ClientConnection clientConn)
     {
-        Console.WriteLine(">>> Server: File IDs read start.");
         var msgId = Guid.Parse(clientConn.ReadNextMessageSection());
         var atcId = Guid.Parse(clientConn.ReadNextMessageSection());
-        Console.WriteLine(">>> Server: File IDs read finish.");
 
-        Console.WriteLine(">>> Server: Verifying message ID.");
         var msg = _messages[msgId];
-        Console.WriteLine(">>> Server: Verifying attachment ID.");
         var atc = msg.Attachments.FirstOrDefault(e => e.Id == atcId)
             ?? throw new Exception($"Invalid message and attachment ID. Message [{msgId}] does not contain attachment [{atcId}].");
         return atc;
@@ -367,7 +361,7 @@ public class ChatServer
         }
         catch (Exception ex)
         {
-            Console.WriteLine("Error disconnecting client: " + ex.Message);
+            Logger.Log(Source.Server, Level.ERROR, $"Error disconnecting client '{clientConn.User.Username}' [{clientConn.User.Uid}] -- " + ex.Message);
         }
     }
 

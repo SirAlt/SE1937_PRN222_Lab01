@@ -1,6 +1,7 @@
 ﻿using ChatServer.Model;
 using NetProtocol;
 using System.Net.Sockets;
+using Utils;
 
 namespace ChatServer.Network;
 
@@ -42,7 +43,7 @@ public class ClientConnection(User user, TcpClient tcpClient)
                     return;
 
                 var opcode = _packetReader.ReadOpCode();
-                Console.WriteLine($">>> [SERVER][DEBUG]: Chat listener received opcode [{opcode}]");
+                Logger.Log(Source.Server, Level.DEBUG, $"Socket listener (type: Chat) received opcode [{opcode}].");
                 switch (opcode)
                 {
                     case OpCode.Chat:
@@ -57,11 +58,12 @@ public class ClientConnection(User user, TcpClient tcpClient)
             }
             catch (Exception ex)
             {
-                Console.WriteLine($">>> [SERVER][ERROR]: Error handling main socket from client '{User.Username}' [{User.Uid}]: " + ex.Message);
+                Logger.Log(Source.Server, Level.ERROR, $"Socket listener (type: Chat) of client '{User.Username}' [{User.Uid}] failed with error -- " + ex.Message);
                 _tcpClient.Close();
             }
         }
     DISCONNECT:
+        Logger.Log(Source.Server, Level.DEBUG, $"Socket listener (type: Chat) of client '{User.Username}' [{User.Uid}] has terminated.");
         ClientDisconnected?.Invoke(this, EventArgs.Empty);
     }
 
@@ -78,7 +80,7 @@ public class ClientConnection(User user, TcpClient tcpClient)
                     return;
 
                 var opcode = _packetReader.ReadOpCode();
-                Console.WriteLine($">>> [SERVER][DEBUG]: Worker listener received opcode [{opcode}]");
+                Logger.Log(Source.Server, Level.DEBUG, $"Socket listener (type: Worker) received opcode [{opcode}].");
                 switch (opcode)
                 {
                     case OpCode.FileTransfer:
@@ -97,11 +99,11 @@ public class ClientConnection(User user, TcpClient tcpClient)
         }
         catch (Exception ex)
         {
-            Console.WriteLine($">>> [SERVER][ERROR]: Error handling worker socket of client '{User.Username}' [{User.Uid}]: " + ex.Message);
+            Logger.Log(Source.Server, Level.ERROR, $"Socket listener (type: Worker) of client '{User.Username}' [{User.Uid}] failed with error -- " + ex.Message);
             _tcpClient.Close();
         }
     DISCONNECT:
-        Console.WriteLine($"Worker socket of client '{User.Username}' [{User.Uid}] has finished.");
+        Logger.Log(Source.Server, Level.DEBUG, $"Socket listener (type: Worker) of client '{User.Username}' [{User.Uid}] has terminated.");
     }
 
     public string ReadNextMessageSection()

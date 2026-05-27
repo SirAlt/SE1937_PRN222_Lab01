@@ -92,7 +92,7 @@ public class ServerConnection
                     return;
 
                 var opcode = _packetReader.ReadOpCode();
-                Debug.WriteLine($">>> Client: Chat listener received opcode [{opcode}]");
+                Logger.Log(Source.Client, Level.DEBUG, $"Socket listener (type: Chat) received opcode [{opcode}].");
                 switch (opcode)
                 {
                     case OpCode.NewUser:
@@ -123,7 +123,7 @@ public class ServerConnection
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($">>> [CLIENT][ERROR]: Chat listener failed with error -- " + ex.Message);
+            Logger.Log(Source.Client, Level.ERROR, $"Socket listener (type: Chat) failed with error -- " + ex.Message);
             _tcpClient.Close();
         }
     DISCONNECT:;    // Die gracefully (｡•́⩍•̀｡)
@@ -142,7 +142,7 @@ public class ServerConnection
                     return;
 
                 var opcode = _packetReader.ReadOpCode();
-                Debug.WriteLine($">>> Client: Worker listener received opcode [{opcode}]");
+                Logger.Log(Source.Client, Level.DEBUG, $"Socket listener (type: Worker) received opcode [{opcode}].");
                 switch (opcode)
                 {
                     case OpCode.FileRequestResponse:
@@ -158,7 +158,7 @@ public class ServerConnection
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($">>> [CLIENT][ERROR]: Worker listener failed with error -- " + ex.Message);
+            Logger.Log(Source.Client, Level.ERROR, $"Socket listener (type: Worker) failed with error -- " + ex.Message);
             _tcpClient.Close();
         }
     DISCONNECT:;    // Die gracefully (｡•́⩍•̀｡)
@@ -225,17 +225,17 @@ public class ServerConnection
             .WriteMessageSection(attachmentId.ToString())
             .Build();
         await ns.WriteAsync(packet);
-        Debug.WriteLine($">>> Client: Message [{messageId}] & attachment [{attachmentId}] IDs sent.");
+        Logger.Log(Source.Client, Level.DEBUG, $"Message [{messageId}] & attachment [{attachmentId}] identifiers sent.");
 
         /* Binary data */
-        Debug.WriteLine(">>> Client: Attachment data transmission start.");
+        Logger.Log(Source.Client, Level.DEBUG, $"Data transmission of attachment [{attachmentId}] start.");
         var lenBuffer = BitConverter.GetBytes(dataStream.Length);
         await ns.WriteAsync(lenBuffer);
 
         using var ps = new ProgressStream(dataStream);
         ps.ProgressUpdated += progressUpdateHandler;
         await ps.CopyToAsync(ns);
-        Debug.WriteLine(">>> Client: Attachment data transmission finish.");
+        Logger.Log(Source.Client, Level.DEBUG, $"Data transmission of attachment [{attachmentId}] finish.");
     }
 
     public void DisconnectFromServer()
